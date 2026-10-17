@@ -173,7 +173,7 @@ PlasmaExtras.Representation {
                     options: [
                         { value: "off", label: "Apagado" },
                         { value: "low", label: "Bajo" },
-                        { value: "med", label: "Medio" },
+                        { value: "medium", label: "Medio" },
                         { value: "high", label: "Alto" }
                     ]
                     onActivated: value => full.applet.apply(["brightness", value])

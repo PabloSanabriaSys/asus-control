@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from asus_control.errors import CommandError
+from asus_control.infrastructure.errors import CommandError
 
 _DEFAULT_PWM = (255,) * 8
 _DEFAULT_TEMPS = (40, 55, 64, 68, 71, 74, 77, 80)

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from asus_control.models import BatteryStatus, SensorReadings
-from asus_control.sensors import SysfsSensors
+from asus_control.domain.models import BatteryStatus, SensorReadings
+from asus_control.infrastructure.sysfs import SysfsSensors
 
 
 def write_attributes(directory: Path, **attributes: str) -> None:

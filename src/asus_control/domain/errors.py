@@ -1,16 +1,15 @@
-"""Excepciones de la aplicación."""
+"""Errores esperados de la aplicación; su mensaje se muestra al usuario."""
 
 
 class AsusControlError(Exception):
-    """Base de los errores esperados; su mensaje se muestra al usuario."""
+    """Base de todos los errores esperados."""
 
 
-class CommandError(AsusControlError):
-    """Una orden externa falló, no existe o superó el tiempo límite."""
+class HardwareAccessError(AsusControlError):
+    """No se pudo leer o escribir el hardware (asusd caído, orden fallida, salida inesperada).
 
-
-class ParseError(AsusControlError):
-    """La salida de una orden no tiene el formato esperado."""
+    La infraestructura lanza subclases concretas; la aplicación solo conoce esta base.
+    """
 
 
 class VerificationError(AsusControlError):

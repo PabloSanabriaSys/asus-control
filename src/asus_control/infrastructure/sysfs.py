@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from asus_control.models import BatteryStatus, SensorReadings
+from asus_control.domain.models import BatteryStatus, SensorReadings
 
 logger = logging.getLogger(__name__)
 

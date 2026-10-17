@@ -1,5 +1,5 @@
 import sys
 
-from asus_control.cli import main
+from asus_control.bootstrap import main
 
 sys.exit(main())

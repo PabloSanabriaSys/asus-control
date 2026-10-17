@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum, IntEnum, StrEnum
+from enum import IntEnum, StrEnum
 
 
 class Profile(StrEnum):
@@ -24,25 +24,20 @@ class FanMode(StrEnum):
 
 
 class Fan(StrEnum):
-    """Ventiladores con curva configurable, con el nombre que imprime asusctl."""
+    """Ventiladores con curva configurable."""
 
     CPU = "CPU"
     GPU = "GPU"
     MID = "MID"
 
 
-class Brightness(Enum):
+class Brightness(StrEnum):
     """Niveles de brillo compartido del teclado y la iluminación."""
 
-    OFF = ("off", "Off", "Apagado")
-    LOW = ("low", "Low", "Bajo")
-    MEDIUM = ("med", "Med", "Medio")
-    HIGH = ("high", "High", "Alto")
-
-    def __init__(self, argument: str, reported: str, label: str) -> None:
-        self.argument = argument
-        self.reported = reported
-        self.label = label
+    OFF = "off"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
 
 
 class ChargeLimit(IntEnum):
@@ -55,7 +50,7 @@ class ChargeLimit(IntEnum):
 
 @dataclass(frozen=True)
 class FanCurve:
-    """Curva de un ventilador tal como la reporta asusctl."""
+    """Curva de un ventilador: PWM (0-255) para cada temperatura."""
 
     fan: Fan
     pwm: tuple[int, ...]

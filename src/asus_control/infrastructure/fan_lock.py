@@ -1,4 +1,4 @@
-"""Bloqueo compartido con ``~/.local/bin/alternar-ventilacion``."""
+"""Implementación de ``FanLock``: ``flock`` compartido con ``~/.local/bin/alternar-ventilacion``."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from asus_control.errors import LockBusyError
+from asus_control.domain.errors import LockBusyError
 
 LOCK_NAME = "alternar-ventilacion.lock"
 
