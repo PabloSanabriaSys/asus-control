@@ -14,7 +14,7 @@ readonly CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 readonly LIB_DIR="$DATA_HOME/$APP_ID"
 readonly LAUNCHER="$HOME/.local/bin/$APP_ID"
 readonly DESKTOP_FILE="$DATA_HOME/applications/$APP_ID.desktop"
-readonly ICON_FILE="$DATA_HOME/icons/hicolor/scalable/apps/$APP_ID.svg"
+readonly ICON_DIR="$DATA_HOME/icons/hicolor/scalable/apps"
 
 die() { echo "Error: $*" >&2; exit 1; }
 
@@ -53,7 +53,7 @@ LAUNCHER
 build_applet() {
     local staging=$1
     cp -r -- "$REPO/plasmoid/." "$staging/"
-    rm -rf -- "$staging/translate" "$staging/$APP_ID.svg"
+    rm -rf -- "$staging/translate" "$staging/icons"
     local po lang
     for po in "$REPO"/plasmoid/translate/*.po; do
         lang="$(basename "$po" .po)"
@@ -63,7 +63,9 @@ build_applet() {
 }
 
 install_applet() {
-    install -D -m 0644 -- "$REPO/plasmoid/$APP_ID.svg" "$ICON_FILE"
+    # asus-control: lanzador y explorador de widgets; asus-control-symbolic: bandeja (monocromo,
+    # Plasma lo colorea según el tema mediante la clase ColorScheme-Text).
+    install -D -m 0644 -t "$ICON_DIR" -- "$REPO"/plasmoid/icons/*.svg
     STAGING="$(mktemp -d)"
     trap 'rm -rf -- "$STAGING"' EXIT
     build_applet "$STAGING"

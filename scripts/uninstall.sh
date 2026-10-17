@@ -17,6 +17,7 @@ rm -f -- \
     "$HOME/.local/bin/$APP_ID" \
     "$DATA_HOME/applications/$APP_ID.desktop" \
     "$DATA_HOME/icons/hicolor/scalable/apps/$APP_ID.svg" \
+    "$DATA_HOME/icons/hicolor/scalable/apps/$APP_ID-symbolic.svg" \
     "$CONFIG_HOME/autostart/$APP_ID.desktop"
 
 command -v kbuildsycoca6 >/dev/null && kbuildsycoca6 >/dev/null 2>&1 || true

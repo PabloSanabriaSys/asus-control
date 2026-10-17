@@ -40,7 +40,7 @@ PlasmoidItem {
     readonly property AsusdLive live: AsusdLive {}
     readonly property bool available: live.available
 
-    Plasmoid.icon: "asus-control"
+    Plasmoid.icon: "asus-control-symbolic"
     Plasmoid.status: PlasmaCore.Types.ActiveStatus
     toolTipMainText: i18n("ASUS Control")
     toolTipSubText: tooltipText()

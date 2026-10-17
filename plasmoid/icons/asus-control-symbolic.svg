@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
+  <style type="text/css" id="current-color-scheme">.ColorScheme-Text { color: #fcfcfc; }</style>
+  <g class="ColorScheme-Text" fill="currentColor">
+    <path d="M11 1a10 10 0 1 0 0 20a10 10 0 1 0 0-20zm0 1a9 9 0 1 1 0 18a9 9 0 1 1 0-18z"/>
+    <path id="blade" d="M10.4 9.1C9.6 6.9 10.2 4.2 13 3.3C15.8 3.4 17.6 6 15.4 8.4C14.4 9.4 13 9.8 12.2 10.1z"/>
+    <use href="#blade" transform="rotate(120 11 11)"/>
+    <use href="#blade" transform="rotate(240 11 11)"/>
+    <circle cx="11" cy="11" r="1.7"/>
+  </g>
+</svg>

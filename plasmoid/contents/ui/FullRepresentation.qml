@@ -63,7 +63,7 @@ PlasmaExtras.Representation {
                 spacing: Kirigami.Units.largeSpacing
 
                 Kirigami.Icon {
-                    source: "asus-control"
+                    source: "asus-control-symbolic"
                     implicitWidth: Kirigami.Units.iconSizes.large
                     implicitHeight: Kirigami.Units.iconSizes.large
                 }
