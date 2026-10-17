@@ -7,8 +7,6 @@ ASUS Control tiene dos partes:
 - **El applet** (`plasmoid/`, QML): la interfaz de la bandeja. Lee y escribe directamente en asusd por D-Bus los ajustes simples, y recibe sus cambios en vivo.
 - **El backend** (`src/asus_control/`, Python sin dependencias externas): la ventilación, que necesita bloqueo, verificación y recuperación, y la lectura de sensores y batería. El applet lo ejecuta como orden: `asus-control state` o `asus-control set …`, que responden con una línea JSON.
 
-En Wayland solo Plasma puede anclar un popup al icono de la bandeja, por eso la interfaz es un plasmoide y no una aplicación independiente.
-
 ```
                     ┌── D-Bus (en vivo) ──▶ asusd: perfil, brillo, límite de carga, cinta LED
 plasmoid/ (QML) ────┤
@@ -73,7 +71,7 @@ La CLI también admite `set profile|brightness|charge-limit|lightbar` (útil des
 
 ## Fuentes de datos
 
-Todo pasa por la interfaz D-Bus de asusd (servicio `xyz.ljones.Asusd`), la misma que usa `asusctl`. El backend usa `busctl --json=short`, que tarda unos 8 ms por llamada.
+Todo pasa por la interfaz D-Bus de asusd (servicio `xyz.ljones.Asusd`), la misma que usa `asusctl`. El backend la consulta con `busctl --json=short`.
 
 | Dato | Origen |
 |---|---|
@@ -136,7 +134,7 @@ El applet nunca modifica `/etc`: sin la definición, la fila de la cinta LED no 
   - El estado lleva valores crudos, como `"Discharging"` o `"medium"`.
   - Los errores llevan códigos estables con sus datos, por ejemplo `{"code": "fanModeFailed", "mode": "Ultra", "restored": true}` o `{"code": "notConfirmed", "setting": "profile"}`.
   - `presentation/serialization.py` convierte cada excepción en su código y `Texts.qml` la convierte en una frase con `i18n()`.
-- **Catálogos:** el inglés es el idioma base. Las traducciones están en `plasmoid/translate/*.po` (dominio `plasma_applet_com.pablosanabria.asuscontrol`); no hay `en.po`, porque el texto del código ya es el inglés.
+- **Catálogos:** el inglés es el idioma base. Las traducciones están en `plasmoid/translate/*.po` (dominio `plasma_applet_com.pablosanabria.asuscontrol`).
 - **Instalación:**
   - `scripts/install.sh` compila cada `.po` en `contents/locale/<idioma>/LC_MESSAGES/` dentro de una copia temporal del paquete, y Plasma carga la traducción del propio paquete.
   - El repositorio no guarda archivos `.mo`.
@@ -164,6 +162,4 @@ El QML no tiene pruebas automáticas. Se comprueba en Plasma con `plasmawindowed
 ## Limitaciones conocidas
 
 - **Brillo compartido:** asusd expone un único brillo (`Aura.Brightness`) y el firmware lo aplica a teclado y cinta por igual. En el G615JH, la cinta tampoco admite un color propio por zona, así que no hay forma de regular su intensidad por separado.
-- **Lógica en QML sin tests:** los códigos de asusd y la escritura de `LedPower` que usa el applet viven en `AsusdLive.qml`, duplicando la del backend, que sí tiene tests.
-- **Lecturas sobrantes del backend:** `asus-control state` también lee perfil, brillo, límite de carga y cinta, aunque el applet los obtiene en vivo. Son unas pocas llamadas D-Bus de más cada 2 s, solo con el popup abierto.
-- **Tamaño del popup:** lo define la bandeja de Plasma. Si el contenido no cabe, se desplaza verticalmente.
+- **Lógica en QML sin tests:** los códigos de asusd y la escritura de `LedPower` del applet están en `AsusdLive.qml`, sin pruebas automáticas.

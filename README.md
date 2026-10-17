@@ -49,7 +49,7 @@ Está hecho y probado para el **ROG Strix G16 G615JH** con asusd 6.5.0 en Fedora
 ## Requisitos
 
 - KDE Plasma 6 con `asusd` en ejecución (paquete `asusctl`).
-- `/usr/bin/python3` 3.11 o superior. El backend solo usa la biblioteca estándar.
+- `/usr/bin/python3` 3.11 o superior (sin paquetes adicionales).
 - `gettext` (`msgfmt`) para compilar las traducciones al instalar.
 
 Los modos de ventilación y la detección de la cinta LED están pensados para el G615JH. En otros modelos ROG los controles generales (perfil, brillo, carga) deberían funcionar, pero no se ha probado.
@@ -107,7 +107,7 @@ scripts/update-translations.sh --check                    # pytest también lo e
 LANGUAGE=es plasmawindowed com.pablosanabria.asuscontrol  # probar en español
 ```
 
-La arquitectura, las fuentes de datos y las pruebas están en [docs/README.md](docs/README.md). Los commits siguen [Conventional Commits](https://www.conventionalcommits.org/).
+La arquitectura, las fuentes de datos y las pruebas están en [docs/README.md](docs/README.md).
 
 ## Licencia
 
