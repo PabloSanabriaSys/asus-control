@@ -18,12 +18,11 @@ PlasmoidItem {
     readonly property string backend: "\"$HOME/.local/bin/asus-control\""
     readonly property int panelRefreshMs: 2000
     readonly property int profileCheckMs: 10000
-    readonly property int successMessageMs: 4000
 
     property var hw: null
     property bool busy: false
-    property string message: ""
-    property bool messageIsError: false
+    /** Último error de una acción; vacío si no hay. Los cambios correctos no se anuncian. */
+    property string errorMessage: ""
 
     property var queue: []
     property var running: null
@@ -61,24 +60,23 @@ PlasmoidItem {
 
     function refresh() {
         if (!isQueued("state"))
-            enqueue("state", null);
+            enqueue("state", false);
     }
 
     function checkProfile() {
         if (!isQueued("profile") && !isQueued("state"))
-            enqueue("profile", null);
+            enqueue("profile", false);
     }
 
     function apply(setting, value) {
         if (busy)
             return;
         busy = true;
-        enqueue("set " + quote(setting) + " " + quote(value), { setting: setting, value: String(value) });
+        enqueue("set " + quote(setting) + " " + quote(value), true);
     }
 
-    function clearMessage() {
-        message = "";
-        messageIsError = false;
+    function clearError() {
+        errorMessage = "";
     }
 
     function quote(value) {
@@ -89,9 +87,9 @@ PlasmoidItem {
         return (running && running.command === command) || queue.some(item => item.command === command);
     }
 
-    /** `action` es {setting, value} para los cambios y null para las lecturas. */
-    function enqueue(command, action) {
-        queue = queue.concat([{ command: command, action: action || null }]);
+    /** `isAction`: cambio de un ajuste (bloquea los controles) frente a una lectura. */
+    function enqueue(command, isAction) {
+        queue = queue.concat([{ command: command, isAction: isAction }]);
         runNext();
     }
 
@@ -106,7 +104,7 @@ PlasmoidItem {
     function finish(exitCode, stdout, stderr) {
         const item = running;
         running = null;
-        if (item.action !== null)
+        if (item.isAction)
             busy = false;
         handleResponse(item, exitCode, stdout, stderr);
         runNext();
@@ -121,7 +119,7 @@ PlasmoidItem {
         }
         if (response === null) {
             console.warn("asus-control failed:", exitCode, stderr);
-            showMessage(texts.backendFailure(), true);
+            errorMessage = texts.backendFailure();
             return;
         }
         if (item.command === "profile") {
@@ -131,19 +129,8 @@ PlasmoidItem {
             return;
         }
         hw = response.state;
-        if (item.action === null)
-            return;
-        if (response.ok)
-            showMessage(texts.success(item.action.setting, item.action.value), false);
-        else
-            showMessage(texts.error(response.error), true);
-    }
-
-    function showMessage(text, isError) {
-        message = text || "";
-        messageIsError = isError;
-        if (!isError)
-            successTimer.restart();
+        if (item.isAction)
+            errorMessage = response.ok ? "" : texts.error(response.error);
     }
 
     P5Support.DataSource {
@@ -172,16 +159,6 @@ PlasmoidItem {
         running: !root.expanded
         repeat: true
         onTriggered: root.checkProfile()
-    }
-
-    Timer {
-        id: successTimer
-
-        interval: root.successMessageMs
-        onTriggered: {
-            if (!root.messageIsError)
-                root.clearMessage();
-        }
     }
 
     Component.onCompleted: refresh()

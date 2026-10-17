@@ -66,6 +66,8 @@ update() {
     for po in "$TRANSLATE_DIR"/*.po; do
         [[ -e $po ]] || continue
         msgmerge --quiet --update --backup=none --no-fuzzy-matching "$po" "$TEMPLATE"
+        # Las entradas de textos eliminados del QML (#~) no se conservan.
+        msgattrib --no-obsolete --output-file="$po" "$po"
         echo "Actualizado: ${po#"$ROOT"/} ($(msgfmt --statistics -o /dev/null "$po" 2>&1))"
     done
 }

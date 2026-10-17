@@ -6,10 +6,10 @@ Applet (plasmoide) para la bandeja de KDE Plasma (Wayland) que controla un ASUS 
 
 - **Rendimiento:** Quiet, Balanced y Performance. Siempre muestra el perfil real.
 - **Ventilación:** Normal, Extra, Ultra y Ultra Mega, con las mismas curvas que `~/.local/bin/alternar-ventilacion`. La sección solo aparece en Balanced y nunca cambia el perfil por su cuenta.
-- **Iluminación:** Apagado, Bajo, Medio y Alto. asusctl expone un brillo compartido para teclado e iluminación.
-- **Cinta LED:** interruptor de encendido. Solo aparece si asusd confirma que admite la zona Lightbar (ver [docs/README.md](docs/README.md#cinta-led)).
-- **Batería:** porcentaje, conexión a corriente y límite de carga de 60, 80 o 100 %.
-- **Sensores:** temperatura del paquete CPU y RPM de los ventiladores de CPU, GPU y central.
+- **Iluminación:** slider de brillo con los cuatro niveles del hardware (Apagado, Bajo, Medio y Alto). asusctl expone un único brillo compartido por el teclado y la iluminación.
+- **Cinta LED:** interruptor de encendido; no tiene brillo propio. Solo aparece si asusd confirma que admite la zona Lightbar (ver [docs/README.md](docs/README.md#cinta-led)).
+- **Batería:** porcentaje con el icono de batería del tema (con enchufe si está conectada), estado de carga y límite de carga de 60, 80 o 100 %.
+- **Sensores:** temperatura del paquete CPU y RPM de los ventiladores de CPU, GPU y central, en la parte superior del popup.
 
 ### Comportamiento
 
@@ -18,7 +18,7 @@ Applet (plasmoide) para la bandeja de KDE Plasma (Wayland) que controla un ASUS 
 - Al cargar solo se leen datos; nunca se aplica ningún ajuste de hardware.
 - Cada cambio se confirma con una lectura posterior y los controles se marcan solo según el estado leído.
 - Si falta asusd o un sensor, se muestra «No disponible» o «—» y se deshabilitan los controles afectados.
-- **Mensajes:** los errores permanecen hasta cerrarlos; las confirmaciones desaparecen a los 4 s.
+- **Mensajes:** solo se muestran errores, que permanecen hasta cerrarlos. Un cambio correcto no se anuncia: se ve en el propio control.
 - La gestión de perfiles al conectar o desconectar la corriente sigue en manos de asusd. El applet cambia solo el perfil activo, sin tocar los perfiles de corriente y batería.
 - **Carga y visibilidad:** Plasma carga el applet en cada sesión, así que no hay autoarranque ni instancias propias. Para ocultarlo: clic derecho en la flecha de la bandeja → *Configurar la bandeja del sistema* → *Entradas*.
 

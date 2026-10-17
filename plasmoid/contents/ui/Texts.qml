@@ -1,5 +1,5 @@
 /*
- * Textos que dependen de datos del backend: confirmaciones, códigos de error y valores
+ * Textos que dependen de datos del backend: códigos de error y valores
  * de sysfs. El backend no envía frases; aquí se traducen con i18n() al idioma del sistema.
  * Los nombres de perfil (Quiet, Balanced, Performance) y de modo de ventilación son
  * nombres propios y no se traducen.
@@ -7,22 +7,6 @@
 import QtQuick
 
 QtObject {
-    function success(setting, value) {
-        switch (setting) {
-        case "profile":
-            return i18n("Profile %1 active.", value);
-        case "fan":
-            return i18n("Fan mode %1 active.", value);
-        case "brightness":
-            return i18n("Lighting: %1.", brightness(value));
-        case "charge-limit":
-            return i18n("Charge limit: %1 %.", value);
-        case "lightbar":
-            return value === "on" ? i18n("Lightbar on.") : i18n("Lightbar off.");
-        }
-        return "";
-    }
-
     function error(details) {
         switch (details.code) {
         case "fanRequiresBalanced":

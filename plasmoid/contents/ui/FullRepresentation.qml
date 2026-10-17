@@ -1,4 +1,4 @@
-/* Contenido del popup: resumen, controles y sensores. */
+/* Contenido del popup: resumen, sensores y controles. */
 import QtQuick
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
@@ -12,20 +12,27 @@ PlasmaExtras.Representation {
     required property Texts texts
 
     readonly property var hw: applet.hw
+    readonly property var battery: hw ? hw.battery : null
     readonly property bool controlsEnabled: applet.available && !applet.busy
     readonly property string unavailable: i18n("Not available")
 
     Layout.minimumWidth: Kirigami.Units.gridUnit * 18
     Layout.preferredWidth: Kirigami.Units.gridUnit * 20
-    Layout.preferredHeight: Kirigami.Units.gridUnit * 27
-    collapseMarginsHint: true
+    Layout.preferredHeight: Kirigami.Units.gridUnit * 24
 
     function sensorValue(value) {
         return value === null || value === undefined ? "—" : String(value);
     }
 
-    function batteryText() {
-        const battery = hw ? hw.battery : null;
+    /** Icono de Breeze por decenas: battery-060, battery-060-charging… */
+    function batteryIcon() {
+        if (!battery || battery.percent === null)
+            return "battery-missing";
+        const level = String(Math.round(battery.percent / 10) * 10).padStart(3, "0");
+        return "battery-" + level + (battery.acOnline ? "-charging" : "");
+    }
+
+    function batteryStatusText() {
         if (!battery)
             return unavailable;
         const parts = [];
@@ -47,10 +54,9 @@ PlasmaExtras.Representation {
             width: scroll.availableWidth
             spacing: Kirigami.Units.largeSpacing
 
-            // --- Resumen ------------------------------------------------------------
+            // --- Resumen: perfil y batería ------------------------------------------
             RowLayout {
                 Layout.fillWidth: true
-                Layout.margins: Kirigami.Units.smallSpacing
                 spacing: Kirigami.Units.largeSpacing
 
                 Kirigami.Icon {
@@ -86,18 +92,27 @@ PlasmaExtras.Representation {
                 ColumnLayout {
                     spacing: 0
 
-                    Kirigami.Heading {
+                    RowLayout {
                         Layout.alignment: Qt.AlignRight
-                        level: 2
-                        text: full.hw && full.hw.battery && full.hw.battery.percent !== null
-                              ? i18n("%1 %", full.hw.battery.percent) : "—"
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Kirigami.Icon {
+                            source: full.batteryIcon()
+                            implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                            implicitHeight: Kirigami.Units.iconSizes.smallMedium
+                        }
+
+                        Kirigami.Heading {
+                            level: 2
+                            text: full.battery && full.battery.percent !== null
+                                  ? i18n("%1 %", full.battery.percent) : "—"
+                        }
                     }
 
                     PlasmaComponents.Label {
                         Layout.alignment: Qt.AlignRight
-                        text: full.hw && full.hw.battery && full.hw.battery.acOnline
-                              ? i18nc("power source, short", "Plugged in")
-                              : i18nc("power source, short", "Battery")
+                        text: full.batteryStatusText()
+                        font: Kirigami.Theme.smallFont
                         opacity: 0.7
                     }
                 }
@@ -110,19 +125,45 @@ PlasmaExtras.Representation {
                 visible: full.hw !== null && !full.hw.asusdAvailable
             }
 
+            // Solo errores: el resultado de un cambio correcto ya se ve en los controles.
             Kirigami.InlineMessage {
                 Layout.fillWidth: true
                 type: Kirigami.MessageType.Error
-                text: full.applet.message
-                visible: full.applet.messageIsError && full.applet.message !== ""
+                text: full.applet.errorMessage
+                visible: full.applet.errorMessage !== ""
                 actions: [
                     Kirigami.Action {
                         icon.name: "dialog-close"
                         text: i18n("Close")
                         displayHint: Kirigami.DisplayHint.IconOnly
-                        onTriggered: full.applet.clearMessage()
+                        onTriggered: full.applet.clearError()
                     }
                 ]
+            }
+
+            // --- Sensores -----------------------------------------------------------
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Kirigami.Units.smallSpacing
+
+                // «—» indica un sensor no disponible.
+                SensorTile {
+                    label: i18nc("sensor tile caption", "°C CPU")
+                    value: full.sensorValue(full.hw && full.hw.sensors.cpuTemp !== null
+                                            ? Math.round(full.hw.sensors.cpuTemp) : null)
+                }
+                SensorTile {
+                    label: i18nc("sensor tile caption", "RPM CPU")
+                    value: full.sensorValue(full.hw ? full.hw.sensors.cpuFan : null)
+                }
+                SensorTile {
+                    label: i18nc("sensor tile caption", "RPM GPU")
+                    value: full.sensorValue(full.hw ? full.hw.sensors.gpuFan : null)
+                }
+                SensorTile {
+                    label: i18nc("sensor tile caption, middle fan", "RPM mid")
+                    value: full.sensorValue(full.hw ? full.hw.sensors.midFan : null)
+                }
             }
 
             // --- Controles ----------------------------------------------------------
@@ -168,23 +209,26 @@ PlasmaExtras.Representation {
                 title: i18n("Lighting")
                 note: full.hw && full.hw.brightness ? "" : full.unavailable
 
-                SegmentedRow {
+                // asusctl expone un único brillo compartido por el teclado y la iluminación.
+                BrightnessSlider {
                     Layout.fillWidth: true
                     enabled: full.controlsEnabled && full.hw.brightness !== null
+                    texts: full.texts
                     current: full.hw ? full.hw.brightness : null
-                    options: [
-                        { value: "off", label: full.texts.brightness("off") },
-                        { value: "low", label: full.texts.brightness("low") },
-                        { value: "medium", label: full.texts.brightness("medium") },
-                        { value: "high", label: full.texts.brightness("high") }
-                    ]
-                    onActivated: value => full.applet.apply("brightness", value)
+                    onActivated: level => full.applet.apply("brightness", level)
                 }
 
-                // Solo si asusd confirma que admite la zona Lightbar.
+                // Solo si asusd confirma que admite la zona Lightbar; la cinta no tiene brillo propio.
                 RowLayout {
                     Layout.fillWidth: true
                     visible: full.hw !== null && full.hw.lightbar !== null
+
+                    Kirigami.Icon {
+                        source: full.hw && full.hw.lightbar && full.hw.lightbar.on
+                                ? "flashlight-on" : "flashlight-off"
+                        implicitWidth: Kirigami.Units.iconSizes.small
+                        implicitHeight: Kirigami.Units.iconSizes.small
+                    }
 
                     PlasmaComponents.Label {
                         Layout.fillWidth: true
@@ -204,79 +248,19 @@ PlasmaExtras.Representation {
             }
 
             Section {
-                title: i18n("Battery")
+                title: i18n("Charge limit")
 
-                PlasmaComponents.ProgressBar {
+                SegmentedRow {
                     Layout.fillWidth: true
-                    from: 0
-                    to: 100
-                    value: full.hw && full.hw.battery && full.hw.battery.percent !== null
-                           ? full.hw.battery.percent : 0
+                    enabled: full.controlsEnabled && full.hw.chargeLimit !== null
+                    current: full.hw ? full.hw.chargeLimit : null
+                    options: [
+                        { value: 60, label: i18n("%1 %", 60) },
+                        { value: 80, label: i18n("%1 %", 80) },
+                        { value: 100, label: i18n("%1 %", 100) }
+                    ]
+                    onActivated: value => full.applet.apply("charge-limit", value)
                 }
-
-                PlasmaComponents.Label {
-                    Layout.fillWidth: true
-                    text: full.batteryText()
-                    opacity: 0.8
-                    elide: Text.ElideRight
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Kirigami.Units.largeSpacing
-
-                    PlasmaComponents.Label {
-                        text: i18n("Charge limit")
-                    }
-
-                    SegmentedRow {
-                        Layout.fillWidth: true
-                        enabled: full.controlsEnabled && full.hw.chargeLimit !== null
-                        current: full.hw ? full.hw.chargeLimit : null
-                        options: [
-                            { value: 60, label: i18n("%1 %", 60) },
-                            { value: 80, label: i18n("%1 %", 80) },
-                            { value: 100, label: i18n("%1 %", 100) }
-                        ]
-                        onActivated: value => full.applet.apply("charge-limit", value)
-                    }
-                }
-            }
-
-            Section {
-                title: i18n("Sensors")
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Kirigami.Units.smallSpacing
-
-                    // «—» indica un sensor no disponible.
-                    SensorTile {
-                        label: i18nc("sensor tile caption", "°C CPU")
-                        value: full.sensorValue(full.hw && full.hw.sensors.cpuTemp !== null
-                                                ? Math.round(full.hw.sensors.cpuTemp) : null)
-                    }
-                    SensorTile {
-                        label: i18nc("sensor tile caption", "RPM CPU")
-                        value: full.sensorValue(full.hw ? full.hw.sensors.cpuFan : null)
-                    }
-                    SensorTile {
-                        label: i18nc("sensor tile caption", "RPM GPU")
-                        value: full.sensorValue(full.hw ? full.hw.sensors.gpuFan : null)
-                    }
-                    SensorTile {
-                        label: i18nc("sensor tile caption, middle fan", "RPM mid")
-                        value: full.sensorValue(full.hw ? full.hw.sensors.midFan : null)
-                    }
-                }
-            }
-
-            PlasmaComponents.Label {
-                Layout.fillWidth: true
-                visible: !full.applet.messageIsError && full.applet.message !== ""
-                text: "✓ " + full.applet.message
-                opacity: 0.8
-                wrapMode: Text.WordWrap
             }
         }
     }

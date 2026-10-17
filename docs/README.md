@@ -37,8 +37,8 @@ plasmoid/ (QML)  ──sh──▶  asus-control <orden>  ──▶  presentatio
 ### Plugin de Plasma (`plasmoid/`)
 
 - `main.qml` ejecuta el backend con el motor `executable` de Plasma5Support. Una cola garantiza que solo corra una orden a la vez y que no se dupliquen lecturas pendientes. Los valores se citan para `sh`, aunque solo provienen de listas fijas.
-- `FullRepresentation.qml` es el popup; `SegmentedRow.qml`, `Section.qml` y `SensorTile.qml` son componentes reutilizables.
-- Los botones y el interruptor siguen siempre al estado leído: tras un clic se vuelven a enlazar con él, así que nunca se marcan de forma optimista.
+- `FullRepresentation.qml` es el popup y usa los márgenes estándar de la bandeja. `SegmentedRow.qml`, `BrightnessSlider.qml`, `Section.qml` y `SensorTile.qml` son componentes reutilizables.
+- Los botones, el slider y el interruptor siguen siempre al estado leído: tras un clic, o al soltar el slider, se vuelven a enlazar con él, así que nunca se marcan de forma optimista.
 
 ### Idiomas
 
