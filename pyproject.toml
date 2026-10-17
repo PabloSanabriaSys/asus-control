@@ -11,11 +11,36 @@ requires-python = ">=3.11"
 dependencies = ["PySide6>=6.6,<7"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10"]
+dev = ["pytest>=8,<10", "ruff>=0.6", "mypy>=1.10"]
+
+[project.scripts]
+asus-control = "asus_control.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+asus_control = ["resources/*.svg"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "PL", "N", "PTH", "RET", "C4"]
+ignore = ["PLR2004", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR0913"]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+packages = ["asus_control"]
+strict = true
+warn_unreachable = true
