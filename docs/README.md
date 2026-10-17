@@ -16,18 +16,18 @@ plasmoid/ (QML)  ──sh──▶  asus-control <orden>  ──▶  presentatio
 |---|---|---|
 | `domain/` | `models.py` (enums y dataclasses inmutables), `errors.py`, `fan_modes.py` (curvas de `alternar-ventilacion` y detección del modo) | nada |
 | `application/` | `ports.py` (`PlatformPort`, `LightbarPort`, `SensorPort`, `FanLock`), `fan_service.py`, `hardware_service.py` (casos de uso) | `domain` |
-| `infrastructure/` | `asusctl.py` + `asusctl_parsing.py`, `aura.py` (D-Bus de asusd), `sysfs.py`, `fan_lock.py`, `process.py`, `errors.py` | `domain`, `application` |
+| `infrastructure/` | `asusd.py` (adaptadores sobre D-Bus de asusd), `busctl.py` (cliente D-Bus), `sysfs.py`, `fan_lock.py`, `process.py`, `errors.py` | `domain`, `application` |
 | `presentation/` | `cli.py` (órdenes y JSON), `serialization.py`, `labels.py` (textos en español) | `domain`, `application` |
 | `bootstrap.py` | Raíz de composición: crea los adaptadores, los inyecta en los servicios y arranca la CLI | todo |
 
 - **Regla de dependencias:** las dependencias apuntan hacia dentro. `tests/test_architecture.py` la hace cumplir analizando los imports, y además comprueba que el dominio no use E/S (`subprocess`, `json`, `fcntl`).
 - **Puertos y adaptadores:** la aplicación define con `Protocol` lo que necesita y la infraestructura lo implementa; mypy verifica que cada adaptador cumpla su puerto.
-  - `AsusCtl` implementa `PlatformPort`.
-  - `AsusdLightbar` implementa `LightbarPort`: lee por D-Bus y escribe con asusctl.
+  - `AsusdPlatform` implementa `PlatformPort`.
+  - `AsusdLightbar` implementa `LightbarPort`.
   - `SysfsSensors` implementa `SensorPort`.
   - `fan_lock` implementa `FanLock`.
 - **Errores:** la aplicación solo conoce `HardwareAccessError` (dominio). La infraestructura lanza las subclases concretas `CommandError` y `ParseError`.
-- **Formatos externos fuera del dominio:** el argumento `med` de asusctl, el formato `40c:51,…` de las curvas y los números de zona de D-Bus viven en infraestructura. Las etiquetas en español viven en presentación.
+- **Formatos externos fuera del dominio:** los códigos numéricos de asusd (perfil, brillo, zonas) y las firmas D-Bus viven en infraestructura. Las etiquetas en español viven en presentación.
 - **CLI:**
   - `argparse` solo acepta valores cerrados, derivados de los enums. Cada ajuste se declara una vez en la tabla `_SETTINGS`.
   - Un error esperado (`AsusControlError`) devuelve `ok: false`, un `error` con código estable (ver [Idiomas](#idiomas)) y el estado actual.
@@ -35,6 +35,23 @@ plasmoid/ (QML)  ──sh──▶  asus-control <orden>  ──▶  presentatio
 - **Confirmación de cambios:** cada acción vuelve a leer el valor. Si no coincide, se lanza `VerificationError`.
 
 ### Plugin de Plasma (`plasmoid/`)
+
+En esta rama (`perf/qml-dbus`), el applet habla directamente con asusd para todo lo que no necesita la lógica del backend:
+
+| Ajuste | Lectura | Escritura | Confirmación |
+|---|---|---|---|
+| Perfil, brillo, límite de carga, cinta LED | `AsusdLive.qml`: `DBus.Properties` (módulo `org.kde.plasma.workspace.dbus`), en vivo por `PropertiesChanged` | `busctl set-property` desde QML (~10 ms) | el `PropertiesChanged` de asusd; si no llega en 3 s, error «no confirmado» |
+| Ventilación | backend Python (`asus-control state`) | backend Python por D-Bus (bloqueo compartido y recuperación) | respuesta verificada del backend (~140–320 ms) |
+| Sensores y batería | backend Python (sysfs), cada 2 s con el popup abierto | — | — |
+
+- **Sin sondeo para asusd:** los cambios hechos con otra herramienta, como `asusctl`, el script o la conexión del cargador, aparecen al instante.
+- **Limitaciones del módulo QML de D-Bus de Plasma 6.7, verificadas en el equipo:**
+  - No puede enviar `uint32` ni `byte` dentro de un `variant`, así que no sirve para `Properties.Set`.
+  - Escribir en su mapa de propiedades no llega al bus.
+  - No envía estructuras (`SetFanCurve`, `LedPower`).
+  - Las estructuras que llegan en `PropertiesChanged` quedan vacías, así que `LedPower` se relee con `update()`.
+  - Las listas son secuencias de Qt: `Array.isArray()` devuelve `false`.
+- **Lógica fuera de Python:** los códigos de asusd y la conservación de la zona del teclado al escribir `LedPower` están en `AsusdLive.qml`. Esa parte no tiene tests automáticos.
 
 - `main.qml` ejecuta el backend con el motor `executable` de Plasma5Support. Una cola garantiza que solo corra una orden a la vez y que no se dupliquen lecturas pendientes. Los valores se citan para `sh`, aunque solo provienen de listas fijas.
 - `FullRepresentation.qml` es el popup y usa los márgenes estándar de la bandeja. `SegmentedRow.qml`, `BrightnessSlider.qml`, `Section.qml` y `SensorTile.qml` son componentes reutilizables.
@@ -49,29 +66,40 @@ plasmoid/ (QML)  ──sh──▶  asus-control <orden>  ──▶  presentatio
 - **Catálogos:** el inglés es el idioma base. Las traducciones están en `plasmoid/translate/*.po` (dominio `plasma_applet_com.pablosanabria.asuscontrol`).
 - **Instalación:** `scripts/install.sh` compila cada `.po` en `contents/locale/<idioma>/LC_MESSAGES/` dentro de una copia temporal del paquete, y Plasma carga esa traducción del propio paquete. En el repositorio no se guardan `.mo`.
 - **Mantenimiento:** `scripts/update-translations.sh` extrae las cadenas con `xgettext`. Con `--check` falla si la plantilla no coincide con el QML o si queda alguna entrada sin traducir; `tests/test_translations.py` lo ejecuta.
-- **Errores técnicos:** el detalle de un error de acceso al hardware, como la salida de asusctl, se muestra sin traducir dentro del mensaje traducido.
+- **Errores técnicos:** el detalle de un error de acceso al hardware, como la salida de busctl, se muestra sin traducir dentro del mensaje traducido.
 - **Metadatos:** la descripción del applet (`metadata.json`) y la entrada del lanzador incluyen versiones `[es]`.
 
 ### Pruebas por capa (`tests/`)
 
 - `domain/`: reglas puras, incluida la comparación con el script real.
 - `application/`: casos de uso con dobles en memoria de los puertos (`tests/fakes.py`).
-- `infrastructure/`: salidas reales de asusctl y busctl en `fixtures/`, procesos, bloqueo entre procesos, sysfs falso y una integración con `fake_asusd.py` que simula asusctl con estado.
+- `infrastructure/`: respuestas D-Bus reales en `fixtures/`, procesos, bloqueo entre procesos, sysfs falso y una integración con `fake_asusd_bus.py`, que simula `busctl` frente a asusd con estado.
 - `presentation/`: CLI y JSON.
 
 ### Fuentes de datos
 
-| Dato | Lectura | Escritura |
-|---|---|---|
-| Perfil | `asusctl profile get` | `asusctl profile set <P>` (sin `-a`/`-b`) |
-| Ventilación | `asusctl fan-curve --mod-profile Balanced` | `--fan cpu/gpu/mid --data …`, `--enable-fan-curves true/false` |
-| Brillo | `asusctl leds get` | `asusctl leds set off/low/med/high` |
-| Límite de carga | `asusctl battery info` | `asusctl battery limit N` |
-| Cinta LED | D-Bus `xyz.ljones.Aura`: `SupportedPowerZones`, `LedPower` (vía `busctl`) | `asusctl aura power lightbar [--boot] [--awake] …` |
-| Sensores | hwmon `asus` (`cpu_fan`, `gpu_fan`, `mid_fan`) y `coretemp` (`Package id 0`) | — |
-| Batería | `power_supply` con `type=Battery` (sin `scope=Device`) y `type=Mains` | — |
+Todo pasa por la interfaz D-Bus de asusd (servicio `xyz.ljones.Asusd`), la misma que usa `asusctl`, sin arrancar un cliente por cada orden. El applet usa el módulo QML de D-Bus y `busctl`; el backend Python, `busctl --json=short` (~8 ms por llamada, frente a 65–105 ms de cada proceso `asusctl`).
 
-Los dispositivos hwmon y power_supply se buscan por `name`, `*_label` y `type`, nunca por su número.
+| Dato | D-Bus | Quién lo usa |
+|---|---|---|
+| Perfil | `Platform.PlatformProfile` (0 Balanced, 1 Performance, 2 Quiet); `PlatformProfileOnAc/OnBattery` no se tocan | applet (y backend, para revalidar Balanced) |
+| Límite de carga | `Platform.ChargeControlEndThreshold` | applet |
+| Brillo | `Aura.Brightness` (0 Off … 3 High) | applet |
+| Cinta LED | `Aura.SupportedPowerZones`, `Aura.LedPower` (se escribe completo, conservando la zona del teclado) | applet |
+| Ventilación | `FanCurves.FanCurveData(0)`, `SetFanCurve(0, curva)`, `SetFanCurvesEnabled(0, b)` | backend |
+| Sensores | hwmon `asus` (`cpu_fan`, `gpu_fan`, `mid_fan`) y `coretemp` (`Package id 0`), por sysfs | backend |
+| Batería | `power_supply` con `type=Battery` (sin `scope=Device`) y `type=Mains`, por sysfs | backend |
+
+Los códigos y la forma de las respuestas se verificaron en el equipo y están en `tests/fixtures/dbus_*.json`. Los dispositivos hwmon y power_supply se buscan por `name`, `*_label` y `type`, nunca por su número.
+
+### Rendimiento
+
+| Operación | Antes (asusctl) | Ahora |
+|---|---|---|
+| Ver un cambio en el control | tras la respuesta (~0,5 s) | al instante (valor pendiente) |
+| Confirmar perfil, brillo, límite o cinta | ~460 ms | ~10–30 ms (busctl + aviso de asusd) |
+| Confirmar un modo de ventilación | ~700 ms | ~140–320 ms (backend por D-Bus) |
+| Reflejar cambios externos de asusd | sondeo cada 2–10 s | al instante (`PropertiesChanged`) |
 
 ## Ventilación
 
@@ -145,7 +173,7 @@ El QML no tiene pruebas automáticas (no hay `qmltestrunner` ni `plasmoidviewer`
 
 ## Limitaciones conocidas
 
-- **Brillo compartido:** asusctl 6.5.0 solo expone un brillo para teclado e iluminación, así que no hay controles separados para cada uno.
+- **Brillo compartido:** asusd 6.5.0 solo expone un brillo (`Aura.Brightness`) y el firmware lo aplica a teclado y cinta por igual; se comprobó en el equipo. Tampoco admite color por zona para la cinta en este modelo, así que no hay control de intensidad separado.
 - **Cinta LED:** queda oculta mientras no se aplique `lightbar-fix.sh`. El apagado (`aura power lightbar` sin `--awake`) solo se podrá verificar en el equipo después de aplicar la corrección.
 - **Costo de cada lectura:** cada lectura arranca un proceso Python (~0,5 s, en segundo plano). Con el popup abierto se lee cada 2 s; cerrado, solo el perfil cada 10 s.
 - **Tamaño del popup:** el popup de la bandeja tiene el tamaño que define la bandeja de Plasma. Si el contenido no cabe, se desplaza verticalmente.

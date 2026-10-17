@@ -1,6 +1,6 @@
 """Puertos: lo que la aplicación necesita del exterior, sin saber cómo se implementa.
 
-La infraestructura los implementa (asusctl, D-Bus de asusd, sysfs, ``flock``) y las
+La infraestructura los implementa (D-Bus de asusd, sysfs, ``flock``) y las
 pruebas los sustituyen por dobles en memoria. Ante cualquier fallo de acceso se lanza
 ``HardwareAccessError``.
 """

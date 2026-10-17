@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma_applet_com.pablosanabria.asuscontrol\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-17 12:11-0400\n"
+"POT-Creation-Date: 2026-10-17 13:51-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,71 +17,71 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: contents/ui/FullRepresentation.qml:17
+#: contents/ui/FullRepresentation.qml:20
 msgid "Not available"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:78
+#: contents/ui/FullRepresentation.qml:80
 msgid "Performance profile"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:105
-#: contents/ui/FullRepresentation.qml:254
-#: contents/ui/FullRepresentation.qml:255
-#: contents/ui/FullRepresentation.qml:256 contents/ui/main.qml:53
+#: contents/ui/FullRepresentation.qml:111
+#: contents/ui/FullRepresentation.qml:261
+#: contents/ui/FullRepresentation.qml:262
+#: contents/ui/FullRepresentation.qml:263 contents/ui/main.qml:63
 msgid "%1 %"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:121
+#: contents/ui/FullRepresentation.qml:127
 msgid "asusd is not responding. Controls are disabled."
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:134
+#: contents/ui/FullRepresentation.qml:140
 msgid "Close"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:148
+#: contents/ui/FullRepresentation.qml:154
 msgctxt "sensor tile caption"
 msgid "°C CPU"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:153
+#: contents/ui/FullRepresentation.qml:159
 msgctxt "sensor tile caption"
 msgid "RPM CPU"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:157
+#: contents/ui/FullRepresentation.qml:163
 msgctxt "sensor tile caption"
 msgid "RPM GPU"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:161
+#: contents/ui/FullRepresentation.qml:167
 msgctxt "sensor tile caption, middle fan"
 msgid "RPM mid"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:168
+#: contents/ui/FullRepresentation.qml:174
 msgctxt "section title"
 msgid "Performance"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:187
+#: contents/ui/FullRepresentation.qml:193
 msgid "Fans"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:189
+#: contents/ui/FullRepresentation.qml:195
 msgid "Custom curves"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:206
+#: contents/ui/FullRepresentation.qml:212
 msgid "Lighting"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:231
+#: contents/ui/FullRepresentation.qml:238
 msgid "Lightbar"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:247
+#: contents/ui/FullRepresentation.qml:254
 msgid "Charge limit"
 msgstr ""
 
@@ -194,18 +194,14 @@ msgstr ""
 msgid "Plugged in"
 msgstr ""
 
-#: contents/ui/main.qml:34
+#: contents/ui/main.qml:45
 msgid "ASUS Control"
 msgstr ""
 
-#: contents/ui/main.qml:48
-msgid "Reading state…"
-msgstr ""
-
-#: contents/ui/main.qml:50
+#: contents/ui/main.qml:59
 msgid "asusd is not available"
 msgstr ""
 
-#: contents/ui/main.qml:51
+#: contents/ui/main.qml:60
 msgid "Profile %1"
 msgstr ""

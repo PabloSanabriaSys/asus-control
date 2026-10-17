@@ -1,12 +1,12 @@
 # ASUS Control
 
-Applet (plasmoide) para la bandeja de KDE Plasma (Wayland) que controla un ASUS ROG Strix G16 G615JH con asusctl 6.5.0. Se muestra en inglés o en español según el idioma del sistema.
+Applet (plasmoide) para la bandeja de KDE Plasma (Wayland) que controla un ASUS ROG Strix G16 G615JH con asusd 6.5.0 (paquete asusctl). Se muestra en inglés o en español según el idioma del sistema.
 
 ## Funciones
 
 - **Rendimiento:** Quiet, Balanced y Performance. Siempre muestra el perfil real.
 - **Ventilación:** Normal, Extra, Ultra y Ultra Mega, con las mismas curvas que `~/.local/bin/alternar-ventilacion`. La sección solo aparece en Balanced y nunca cambia el perfil por su cuenta.
-- **Iluminación:** slider de brillo con los cuatro niveles del hardware (Apagado, Bajo, Medio y Alto). asusctl expone un único brillo compartido por el teclado y la iluminación.
+- **Iluminación:** slider de brillo con los cuatro niveles del hardware (Apagado, Bajo, Medio y Alto). asusd expone un único brillo, compartido por el teclado y la cinta LED.
 - **Cinta LED:** interruptor de encendido; no tiene brillo propio. Solo aparece si asusd confirma que admite la zona Lightbar (ver [docs/README.md](docs/README.md#cinta-led)).
 - **Batería:** porcentaje con el icono de batería del tema (con enchufe si está conectada), estado de carga y límite de carga de 60, 80 o 100 %.
 - **Sensores:** temperatura del paquete CPU y RPM de los ventiladores de CPU, GPU y central, en la parte superior del popup.
@@ -14,9 +14,9 @@ Applet (plasmoide) para la bandeja de KDE Plasma (Wayland) que controla un ASUS 
 ### Comportamiento
 
 - Es un applet nativo de la bandeja: un clic en el icono despliega el popup anclado a la barra, igual que los de batería o red.
-- **Lecturas:** al abrir el popup, tras cada acción y cada 2 s mientras está abierto. Con el popup cerrado, se comprueba el perfil cada 10 s y el tooltip refleja los cambios externos.
+- **Lecturas:** perfil, brillo, límite de carga y cinta llegan en vivo desde asusd por D-Bus, incluidos los cambios hechos con otras herramientas. Sensores, batería y ventilación se leen al abrir el popup, tras cada acción y cada 2 s mientras está abierto.
+- **Respuesta inmediata:** el control muestra el valor elegido al instante, sin bloquear el resto. Se confirma con la lectura posterior de asusd; si no llega o falla, el control vuelve al valor real y se muestra el error.
 - Al cargar solo se leen datos; nunca se aplica ningún ajuste de hardware.
-- Cada cambio se confirma con una lectura posterior y los controles se marcan solo según el estado leído.
 - Si falta asusd o un sensor, se muestra «No disponible» o «—» y se deshabilitan los controles afectados.
 - **Mensajes:** solo se muestran errores, que permanecen hasta cerrarlos. Un cambio correcto no se anuncia: se ve en el propio control.
 - La gestión de perfiles al conectar o desconectar la corriente sigue en manos de asusd. El applet cambia solo el perfil activo, sin tocar los perfiles de corriente y batería.

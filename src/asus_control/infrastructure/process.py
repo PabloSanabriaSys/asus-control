@@ -11,7 +11,6 @@ from asus_control.infrastructure.errors import CommandError
 
 logger = logging.getLogger(__name__)
 
-ASUSCTL = "/usr/bin/asusctl"
 BUSCTL = "/usr/bin/busctl"
 COMMAND_TIMEOUT_SECONDS = 10.0
 

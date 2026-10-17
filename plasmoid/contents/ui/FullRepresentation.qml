@@ -13,7 +13,10 @@ PlasmaExtras.Representation {
 
     readonly property var hw: applet.hw
     readonly property var battery: hw ? hw.battery : null
-    readonly property bool controlsEnabled: applet.available && !applet.busy
+    readonly property var live: applet.live
+    // Los controles no se bloquean mientras se aplica un cambio: muestran el valor pendiente.
+    readonly property bool controlsEnabled: applet.available
+    readonly property var profile: applet.shown("profile")
     readonly property string unavailable: i18n("Not available")
 
     Layout.minimumWidth: Kirigami.Units.gridUnit * 18
@@ -70,7 +73,7 @@ PlasmaExtras.Representation {
 
                     Kirigami.Heading {
                         level: 2
-                        text: full.hw && full.hw.profile ? full.hw.profile : full.unavailable
+                        text: full.profile || full.unavailable
                     }
 
                     PlasmaComponents.Label {
@@ -122,7 +125,7 @@ PlasmaExtras.Representation {
                 Layout.fillWidth: true
                 type: Kirigami.MessageType.Warning
                 text: i18n("asusd is not responding. Controls are disabled.")
-                visible: full.hw !== null && !full.hw.asusdAvailable
+                visible: !full.live.available
             }
 
             // Solo errores: el resultado de un cambio correcto ya se ve en los controles.
@@ -174,7 +177,7 @@ PlasmaExtras.Representation {
                 SegmentedRow {
                     Layout.fillWidth: true
                     enabled: full.controlsEnabled
-                    current: full.hw ? full.hw.profile : null
+                    current: full.profile
                     options: [
                         { value: "Quiet", label: "Quiet" },
                         { value: "Balanced", label: "Balanced" },
@@ -186,15 +189,15 @@ PlasmaExtras.Representation {
 
             // Ventilación solo existe en Balanced; nunca se cambia el perfil para mostrarla.
             Section {
-                visible: full.hw !== null && full.hw.profile === "Balanced"
+                visible: full.profile === "Balanced"
                 title: i18n("Fans")
                 note: !full.hw || !full.hw.fans ? full.unavailable
                       : full.hw.fans.mode === null ? i18n("Custom curves") : ""
 
                 SegmentedRow {
                     Layout.fillWidth: true
-                    enabled: full.controlsEnabled && full.hw.fans !== null
-                    current: full.hw && full.hw.fans ? full.hw.fans.mode : null
+                    enabled: full.controlsEnabled && full.hw !== null && full.hw.fans !== null
+                    current: full.applet.shown("fan")
                     options: [
                         { value: "Normal", label: "Normal" },
                         { value: "Extra", label: "Extra" },
@@ -207,24 +210,24 @@ PlasmaExtras.Representation {
 
             Section {
                 title: i18n("Lighting")
-                note: full.hw && full.hw.brightness ? "" : full.unavailable
+                note: full.live.brightness ? "" : full.unavailable
 
                 // asusctl expone un único brillo compartido por el teclado y la iluminación.
                 BrightnessSlider {
                     Layout.fillWidth: true
-                    enabled: full.controlsEnabled && full.hw.brightness !== null
+                    enabled: full.controlsEnabled && full.live.brightness !== null
                     texts: full.texts
-                    current: full.hw ? full.hw.brightness : null
+                    current: full.applet.shown("brightness")
                     onActivated: level => full.applet.apply("brightness", level)
                 }
 
                 // Solo si asusd confirma que admite la zona Lightbar; la cinta no tiene brillo propio.
                 RowLayout {
                     Layout.fillWidth: true
-                    visible: full.hw !== null && full.hw.lightbar !== null
+                    visible: full.live.lightbar !== null
 
                     Kirigami.Icon {
-                        source: full.hw && full.hw.lightbar && full.hw.lightbar.on
+                        source: full.applet.shown("lightbar") === "on"
                                 ? "flashlight-on" : "flashlight-off"
                         implicitWidth: Kirigami.Units.iconSizes.small
                         implicitHeight: Kirigami.Units.iconSizes.small
@@ -237,10 +240,10 @@ PlasmaExtras.Representation {
 
                     PlasmaComponents.Switch {
                         enabled: full.controlsEnabled
-                        checked: full.hw && full.hw.lightbar ? full.hw.lightbar.on : false
+                        checked: full.applet.shown("lightbar") === "on"
                         onToggled: {
                             const wanted = checked;
-                            checked = Qt.binding(() => full.hw && full.hw.lightbar ? full.hw.lightbar.on : false);
+                            checked = Qt.binding(() => full.applet.shown("lightbar") === "on");
                             full.applet.apply("lightbar", wanted ? "on" : "off");
                         }
                     }
@@ -252,8 +255,8 @@ PlasmaExtras.Representation {
 
                 SegmentedRow {
                     Layout.fillWidth: true
-                    enabled: full.controlsEnabled && full.hw.chargeLimit !== null
-                    current: full.hw ? full.hw.chargeLimit : null
+                    enabled: full.controlsEnabled && full.live.chargeLimit !== null
+                    current: full.applet.shown("charge-limit")
                     options: [
                         { value: 60, label: i18n("%1 %", 60) },
                         { value: 80, label: i18n("%1 %", 80) },

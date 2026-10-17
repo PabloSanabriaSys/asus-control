@@ -1,4 +1,0 @@
-Active profile: Balanced
-
-AC profile Balanced
-Battery profile Quiet

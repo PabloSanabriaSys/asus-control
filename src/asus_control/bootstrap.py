@@ -6,21 +6,27 @@ import sys
 
 from asus_control.application.fan_service import FanService
 from asus_control.application.hardware_service import HardwareService
-from asus_control.infrastructure.asusctl import AsusCtl
-from asus_control.infrastructure.aura import AsusdLightbar
+from asus_control.infrastructure.asusd import (
+    ASUSD_SERVICE,
+    AsusdLightbar,
+    AsusdPlatform,
+    AuraDevice,
+)
+from asus_control.infrastructure.busctl import Busctl
 from asus_control.infrastructure.fan_lock import default_lock_path, fan_lock
-from asus_control.infrastructure.process import ASUSCTL, BUSCTL, SubprocessRunner
+from asus_control.infrastructure.process import BUSCTL, SubprocessRunner
 from asus_control.infrastructure.sysfs import SysfsSensors
 from asus_control.presentation import cli
 
 
 def build_hardware_service() -> HardwareService:
-    asusctl_runner = SubprocessRunner(ASUSCTL)
-    platform = AsusCtl(asusctl_runner)
+    bus = Busctl(SubprocessRunner(BUSCTL), ASUSD_SERVICE)
+    aura = AuraDevice(bus)
+    platform = AsusdPlatform(bus, aura)
     lock_path = default_lock_path()
     return HardwareService(
         platform=platform,
-        lightbar=AsusdLightbar(busctl=SubprocessRunner(BUSCTL), asusctl=asusctl_runner),
+        lightbar=AsusdLightbar(bus, aura),
         sensors=SysfsSensors(),
         fans=FanService(platform, lambda: fan_lock(lock_path)),
     )
