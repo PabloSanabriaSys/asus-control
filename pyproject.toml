@@ -5,22 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "asus-control"
 version = "0.1.0"
-description = "Panel de control ASUS para la bandeja de KDE Plasma"
+description = "Backend del applet de Plasma para controlar un ASUS ROG Strix G16"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["PySide6>=6.6,<7"]
+dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "ruff>=0.6", "mypy>=1.10"]
 
 [project.scripts]
-asus-control = "asus_control.app:main"
+asus-control = "asus_control.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.setuptools.package-data]
-asus_control = ["resources/*.svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -45,7 +42,3 @@ packages = ["asus_control"]
 strict = true
 warn_unreachable = true
 
-[[tool.mypy.overrides]]
-# El paquete de Fedora incluye los .pyi de PySide6 pero no el marcador py.typed.
-module = ["PySide6", "PySide6.*"]
-follow_untyped_imports = true
