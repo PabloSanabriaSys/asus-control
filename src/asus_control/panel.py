@@ -32,6 +32,11 @@ from asus_control.models import (
 UNAVAILABLE = "No disponible"
 PANEL_WIDTH = 380
 ERROR_COLOR = "#d0302f"
+# El estado activo debe distinguirse en cualquier tema, también en Breeze oscuro.
+_CHECKED_STYLE = (
+    "QPushButton:checked { background-color: palette(highlight);"
+    " color: palette(highlighted-text); }"
+)
 
 _CHARGING_STATES = {
     "Charging": "Cargando",
@@ -98,6 +103,7 @@ class Panel(QWidget):
         self.setWindowTitle("ASUS Control")
         self.setWindowIcon(icon)
         self.setFixedWidth(PANEL_WIDTH)
+        self.setStyleSheet(_CHECKED_STYLE)
 
         self._asusd_banner = QLabel("asusd no responde. Los controles están deshabilitados.")
         self._asusd_banner.setWordWrap(True)
@@ -199,7 +205,6 @@ class Panel(QWidget):
         layout = QVBoxLayout(box)
         layout.addWidget(self._battery)
         layout.addWidget(self._charge)
-        self._charge.setFlat(True)
         return box
 
     def _sensors_box(self) -> QGroupBox:
