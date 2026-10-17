@@ -49,9 +49,14 @@ Item {
 
         busType: DBus.BusType.System
         watchedService: live.service
+        // Si asusd se reinicia (p. ej. lightbar-fix.sh), se vuelve a leer todo.
         onRegisteredChanged: {
-            if (registered)
-                live.discoverAura();
+            if (!registered)
+                return;
+            live.discoverAura();
+            platform.updateAll();
+            if (live.auraPath)
+                aura.updateAll();
         }
     }
 

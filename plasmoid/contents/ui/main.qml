@@ -57,6 +57,8 @@ PlasmoidItem {
     function tooltipText() {
         if (!live.available)
             return i18n("asusd is not available");
+        if (!live.profile)
+            return i18n("Reading state…");
         const parts = [i18n("Profile %1", live.profile)];
         const battery = hw ? hw.battery : null;
         if (battery && battery.percent !== null)

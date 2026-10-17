@@ -23,7 +23,9 @@ check_requirements() {
     "$PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 11))' || die "se necesita Python 3.11 o superior."
     command -v kpackagetool6 >/dev/null || die "falta kpackagetool6 (Plasma 6)."
     command -v msgfmt >/dev/null || die "falta msgfmt (paquete gettext) para compilar las traducciones."
-    command -v asusctl >/dev/null || echo "Aviso: asusctl no está instalado; los controles aparecerán como no disponibles."
+    # El applet habla con el servicio asusd (paquete asusctl) por D-Bus.
+    busctl --system status xyz.ljones.Asusd >/dev/null 2>&1 \
+        || echo "Aviso: asusd no está en ejecución; los controles aparecerán como no disponibles."
 }
 
 remove_legacy_tray_app() {

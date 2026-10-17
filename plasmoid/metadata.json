@@ -12,6 +12,7 @@
         "EnabledByDefault": true,
         "Icon": "asus-control",
         "Id": "com.pablosanabria.asuscontrol",
+        "License": "Apache-2.0",
         "Name": "ASUS Control",
         "Version": "0.3.0"
     },
