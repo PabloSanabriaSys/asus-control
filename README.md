@@ -64,6 +64,6 @@ PYTHONPATH=src python3 -m asus_control state               # backend sin instala
 plasmawindowed com.pablosanabria.asuscontrol               # applet instalado, en ventana
 ```
 
-Tras editar el QML: `kpackagetool6 -t Plasma/Applet --upgrade plasmoid` y vuelve a abrir el applet o reinicia plasmashell. La arquitectura y las pruebas están descritas en [docs/README.md](docs/README.md).
+Tras editar el QML: `kpackagetool6 -t Plasma/Applet --upgrade plasmoid` y vuelve a abrir el applet o reinicia plasmashell. El backend sigue una arquitectura por capas (`domain`, `application`, `infrastructure`, `presentation`), descrita junto con las pruebas en [docs/README.md](docs/README.md#arquitectura).
 
 Se usan Conventional Commits (`feat:`, `fix:`, `docs:`, `build:`, `refactor:`…), sin atribuciones de coautor automáticas. No hay un remoto de GitHub configurado todavía.

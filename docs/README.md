@@ -2,28 +2,50 @@
 
 ## Arquitectura
 
+El proyecto es un **plugin de Plasma** (plasmoide de la bandeja) con un backend Python sin dependencias externas. En Wayland solo Plasma puede anclar un popup al icono de la bandeja; por eso la interfaz es QML y toda la lógica está en Python.
+
 ```
-Applet QML (bandeja de Plasma)  ──sh──▶  asus-control <orden>  ──▶  HardwareService
-  plasmoid/contents/ui/                    cli.py → JSON              asusctl · busctl · sysfs
+plasmoid/ (QML)  ──sh──▶  asus-control <orden>  ──▶  presentation → application → domain
+                                                                         ▲
+                                                     infrastructure ─────┘ (implementa los puertos)
 ```
 
-En Wayland solo Plasma puede anclar un popup al icono de la bandeja. Por eso la interfaz es un plasmoide QML y toda la lógica está en un backend Python sin dependencias externas.
+### Capas del backend (`src/asus_control/`)
 
-| Capa | Archivos | Responsabilidad |
+| Capa | Contenido | Puede importar |
 |---|---|---|
-| Dominio | `models.py`, `parsing.py`, `fans.py`, `errors.py` | Tipos inmutables, interpretación de salidas, modos de ventilación con verificación y recuperación |
-| Adaptadores | `commands.py`, `sensors.py`, `fan_lock.py`, `hardware.py` | asusctl y busctl (argumentos separados, sin shell, tiempo límite de 10 s), sysfs, bloqueo compartido |
-| Backend | `cli.py`, `serialization.py` | Órdenes `state`, `profile` y `set …`; cada una imprime una línea JSON `{ok, message, state}` |
-| Interfaz | `plasmoid/contents/ui/*.qml` | Popup de la bandeja, cola de órdenes y temporizadores |
+| `domain/` | `models.py` (enums y dataclasses inmutables), `errors.py`, `fan_modes.py` (curvas de `alternar-ventilacion` y detección del modo) | nada |
+| `application/` | `ports.py` (`PlatformPort`, `LightbarPort`, `SensorPort`, `FanLock`), `fan_service.py`, `hardware_service.py` (casos de uso) | `domain` |
+| `infrastructure/` | `asusctl.py` + `asusctl_parsing.py`, `aura.py` (D-Bus de asusd), `sysfs.py`, `fan_lock.py`, `process.py`, `errors.py` | `domain`, `application` |
+| `presentation/` | `cli.py` (órdenes y JSON), `serialization.py`, `labels.py` (textos en español) | `domain`, `application` |
+| `bootstrap.py` | Raíz de composición: crea los adaptadores, los inyecta en los servicios y arranca la CLI | todo |
 
-- **CLI:** `argparse` solo acepta valores cerrados, derivados de los enums. Un error esperado (`AsusControlError`, por ejemplo una verificación fallida o la ventilación fuera de Balanced) devuelve `ok: false` con el mensaje para el usuario y el estado actual. Un error no previsto devuelve código 1 con la traza en stderr; el applet lo muestra como «No se pudo comunicar con el backend».
-- **Applet:**
-  - `main.qml` ejecuta el backend con el motor `executable` de Plasma5Support.
-  - Una cola garantiza que solo corra una orden a la vez y que no se dupliquen lecturas pendientes.
-  - Los valores se citan para `sh`, aunque solo provienen de listas fijas.
-- **Componentes:** `FullRepresentation.qml` es el popup; `SegmentedRow.qml`, `Section.qml` y `SensorTile.qml` son reutilizables.
-- **Confirmación de cambios:** cada acción vuelve a leer el valor. Si no coincide, se lanza `VerificationError`. Los botones y el interruptor siguen siempre al estado leído: tras un clic se vuelven a enlazar con él, así que nunca se marcan de forma optimista.
-- **Inyección de dependencias:** `CommandRunner` es un `Protocol`, así que las pruebas sustituyen asusctl por una simulación con estado (`tests/fake_asusd.py`). `SysfsSensors` recibe la raíz de sysfs como parámetro.
+- **Regla de dependencias:** las dependencias apuntan hacia dentro. `tests/test_architecture.py` la hace cumplir analizando los imports, y además comprueba que el dominio no use E/S (`subprocess`, `json`, `fcntl`).
+- **Puertos y adaptadores:** la aplicación define con `Protocol` lo que necesita y la infraestructura lo implementa; mypy verifica que cada adaptador cumpla su puerto.
+  - `AsusCtl` implementa `PlatformPort`.
+  - `AsusdLightbar` implementa `LightbarPort`: lee por D-Bus y escribe con asusctl.
+  - `SysfsSensors` implementa `SensorPort`.
+  - `fan_lock` implementa `FanLock`.
+- **Errores:** la aplicación solo conoce `HardwareAccessError` (dominio). La infraestructura lanza las subclases concretas `CommandError` y `ParseError`.
+- **Formatos externos fuera del dominio:** el argumento `med` de asusctl, el formato `40c:51,…` de las curvas y los números de zona de D-Bus viven en infraestructura. Las etiquetas en español viven en presentación.
+- **CLI:**
+  - `argparse` solo acepta valores cerrados, derivados de los enums. Cada ajuste se declara una vez en la tabla `_SETTINGS`.
+  - Un error esperado (`AsusControlError`) devuelve `ok: false` con el mensaje y el estado actual.
+  - Un error no previsto devuelve código 1 con la traza en stderr.
+- **Confirmación de cambios:** cada acción vuelve a leer el valor. Si no coincide, se lanza `VerificationError`.
+
+### Plugin de Plasma (`plasmoid/`)
+
+- `main.qml` ejecuta el backend con el motor `executable` de Plasma5Support. Una cola garantiza que solo corra una orden a la vez y que no se dupliquen lecturas pendientes. Los valores se citan para `sh`, aunque solo provienen de listas fijas.
+- `FullRepresentation.qml` es el popup; `SegmentedRow.qml`, `Section.qml` y `SensorTile.qml` son componentes reutilizables.
+- Los botones y el interruptor siguen siempre al estado leído: tras un clic se vuelven a enlazar con él, así que nunca se marcan de forma optimista.
+
+### Pruebas por capa (`tests/`)
+
+- `domain/`: reglas puras, incluida la comparación con el script real.
+- `application/`: casos de uso con dobles en memoria de los puertos (`tests/fakes.py`).
+- `infrastructure/`: salidas reales de asusctl y busctl en `fixtures/`, procesos, bloqueo entre procesos, sysfs falso y una integración con `fake_asusd.py` que simula asusctl con estado.
+- `presentation/`: CLI y JSON.
 
 ### Fuentes de datos
 
@@ -94,6 +116,7 @@ Cubren:
 - Sensores sobre un sysfs falso con números hwmon distintos.
 - Lecturas que nunca escriben en el hardware.
 - Serialización JSON, cada orden `set` de la CLI, errores esperados como `ok: false`, rechazo de argumentos no válidos y código de salida ante errores no previstos.
+- Regla de dependencias entre capas (`tests/test_architecture.py`).
 
 El QML no tiene pruebas automáticas (no hay `qmltestrunner` ni `plasmoidviewer` instalados). Se verifica en Plasma con `plasmawindowed` y revisando `journalctl --user -u plasma-plasmashell`.
 
