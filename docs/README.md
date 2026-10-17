@@ -36,6 +36,23 @@ plasmoid/ (QML)  ──sh──▶  asus-control <orden>  ──▶  presentatio
 
 ### Plugin de Plasma (`plasmoid/`)
 
+En esta rama (`perf/qml-dbus`), el applet habla directamente con asusd para todo lo que no necesita la lógica del backend:
+
+| Ajuste | Lectura | Escritura | Confirmación |
+|---|---|---|---|
+| Perfil, brillo, límite de carga, cinta LED | `AsusdLive.qml`: `DBus.Properties` (módulo `org.kde.plasma.workspace.dbus`), en vivo por `PropertiesChanged` | `busctl set-property` desde QML (~10 ms) | el `PropertiesChanged` de asusd; si no llega en 3 s, error «no confirmado» |
+| Ventilación | backend Python (`asus-control state`) | backend Python (bloqueo compartido y recuperación) | respuesta verificada del backend |
+| Sensores y batería | backend Python (sysfs), cada 2 s con el popup abierto | — | — |
+
+- **Sin sondeo para asusd:** los cambios hechos con otra herramienta, como `asusctl`, el script o la conexión del cargador, aparecen al instante.
+- **Limitaciones del módulo QML de D-Bus de Plasma 6.7, verificadas en el equipo:**
+  - No puede enviar `uint32` ni `byte` dentro de un `variant`, así que no sirve para `Properties.Set`.
+  - Escribir en su mapa de propiedades no llega al bus.
+  - No envía estructuras (`SetFanCurve`, `LedPower`).
+  - Las estructuras que llegan en `PropertiesChanged` quedan vacías, así que `LedPower` se relee con `update()`.
+  - Las listas son secuencias de Qt: `Array.isArray()` devuelve `false`.
+- **Lógica fuera de Python:** los códigos de asusd y la conservación de la zona del teclado al escribir `LedPower` están en `AsusdLive.qml`. Esa parte no tiene tests automáticos.
+
 - `main.qml` ejecuta el backend con el motor `executable` de Plasma5Support. Una cola garantiza que solo corra una orden a la vez y que no se dupliquen lecturas pendientes. Los valores se citan para `sh`, aunque solo provienen de listas fijas.
 - `FullRepresentation.qml` es el popup y usa los márgenes estándar de la bandeja. `SegmentedRow.qml`, `BrightnessSlider.qml`, `Section.qml` y `SensorTile.qml` son componentes reutilizables.
 - Los botones, el slider y el interruptor siguen siempre al estado leído: tras un clic, o al soltar el slider, se vuelven a enlazar con él, así que nunca se marcan de forma optimista.

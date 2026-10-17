@@ -14,9 +14,9 @@ Applet (plasmoide) para la bandeja de KDE Plasma (Wayland) que controla un ASUS 
 ### Comportamiento
 
 - Es un applet nativo de la bandeja: un clic en el icono despliega el popup anclado a la barra, igual que los de batería o red.
-- **Lecturas:** al abrir el popup, tras cada acción y cada 2 s mientras está abierto. Con el popup cerrado, se comprueba el perfil cada 10 s y el tooltip refleja los cambios externos.
+- **Lecturas:** perfil, brillo, límite de carga y cinta llegan en vivo desde asusd por D-Bus, incluidos los cambios hechos con otras herramientas. Sensores, batería y ventilación se leen al abrir el popup, tras cada acción y cada 2 s mientras está abierto.
+- **Respuesta inmediata:** el control muestra el valor elegido al instante, sin bloquear el resto. Se confirma con la lectura posterior de asusd; si no llega o falla, el control vuelve al valor real y se muestra el error.
 - Al cargar solo se leen datos; nunca se aplica ningún ajuste de hardware.
-- Cada cambio se confirma con una lectura posterior y los controles se marcan solo según el estado leído.
 - Si falta asusd o un sensor, se muestra «No disponible» o «—» y se deshabilitan los controles afectados.
 - **Mensajes:** solo se muestran errores, que permanecen hasta cerrarlos. Un cambio correcto no se anuncia: se ve en el propio control.
 - La gestión de perfiles al conectar o desconectar la corriente sigue en manos de asusd. El applet cambia solo el perfil activo, sin tocar los perfiles de corriente y batería.
