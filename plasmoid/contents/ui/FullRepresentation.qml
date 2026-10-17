@@ -210,32 +210,77 @@ PlasmaExtras.Representation {
 
             Section {
                 title: i18n("Lighting")
-                note: full.live.brightness ? "" : full.unavailable
 
-                // asusctl expone un único brillo compartido por el teclado y la iluminación.
-                BrightnessSlider {
+                // Teclado: asusd expone un único brillo, compartido con la cinta LED.
+                RowLayout {
                     Layout.fillWidth: true
-                    enabled: full.controlsEnabled && full.live.brightness !== null
-                    texts: full.texts
-                    current: full.applet.shown("brightness")
-                    onActivated: level => full.applet.apply("brightness", level)
+                    spacing: Kirigami.Units.largeSpacing
+
+                    Kirigami.Icon {
+                        source: "input-keyboard-brightness"
+                        implicitWidth: Kirigami.Units.iconSizes.medium
+                        implicitHeight: Kirigami.Units.iconSizes.medium
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+
+                        RowLayout {
+                            Layout.fillWidth: true
+
+                            PlasmaComponents.Label {
+                                Layout.fillWidth: true
+                                text: i18n("Keyboard")
+                            }
+
+                            PlasmaComponents.Label {
+                                text: full.live.brightness
+                                      ? full.texts.brightness(full.applet.shown("brightness"))
+                                      : full.unavailable
+                                opacity: 0.7
+                            }
+                        }
+
+                        BrightnessSlider {
+                            Layout.fillWidth: true
+                            enabled: full.controlsEnabled && full.live.brightness !== null
+                            current: full.applet.shown("brightness")
+                            onActivated: level => full.applet.apply("brightness", level)
+                        }
+                    }
                 }
 
-                // Solo si asusd confirma que admite la zona Lightbar; la cinta no tiene brillo propio.
+                // Cinta LED: solo si asusd confirma que admite la zona Lightbar. No tiene brillo
+                // propio: sigue al del teclado.
                 RowLayout {
                     Layout.fillWidth: true
                     visible: full.live.lightbar !== null
+                    spacing: Kirigami.Units.largeSpacing
 
                     Kirigami.Icon {
                         source: full.applet.shown("lightbar") === "on"
-                                ? "flashlight-on" : "flashlight-off"
-                        implicitWidth: Kirigami.Units.iconSizes.small
-                        implicitHeight: Kirigami.Units.iconSizes.small
+                                ? "flashlight-on-symbolic" : "flashlight-off-symbolic"
+                        implicitWidth: Kirigami.Units.iconSizes.medium
+                        implicitHeight: Kirigami.Units.iconSizes.medium
                     }
 
-                    PlasmaComponents.Label {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        text: i18n("Lightbar")
+                        spacing: 0
+
+                        PlasmaComponents.Label {
+                            Layout.fillWidth: true
+                            text: i18n("Lightbar")
+                        }
+
+                        PlasmaComponents.Label {
+                            Layout.fillWidth: true
+                            text: i18n("Same brightness as the keyboard")
+                            font: Kirigami.Theme.smallFont
+                            opacity: 0.7
+                            elide: Text.ElideRight
+                        }
                     }
 
                     PlasmaComponents.Switch {

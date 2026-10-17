@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma_applet_com.pablosanabria.asuscontrol\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-17 13:51-0400\n"
+"POT-Creation-Date: 2026-10-17 14:47-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -26,9 +26,9 @@ msgid "Performance profile"
 msgstr ""
 
 #: contents/ui/FullRepresentation.qml:111
-#: contents/ui/FullRepresentation.qml:261
-#: contents/ui/FullRepresentation.qml:262
-#: contents/ui/FullRepresentation.qml:263 contents/ui/main.qml:63
+#: contents/ui/FullRepresentation.qml:306
+#: contents/ui/FullRepresentation.qml:307
+#: contents/ui/FullRepresentation.qml:308 contents/ui/main.qml:63
 msgid "%1 %"
 msgstr ""
 
@@ -77,11 +77,19 @@ msgstr ""
 msgid "Lighting"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:238
+#: contents/ui/FullRepresentation.qml:234
+msgid "Keyboard"
+msgstr ""
+
+#: contents/ui/FullRepresentation.qml:274
 msgid "Lightbar"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:254
+#: contents/ui/FullRepresentation.qml:279
+msgid "Same brightness as the keyboard"
+msgstr ""
+
+#: contents/ui/FullRepresentation.qml:299
 msgid "Charge limit"
 msgstr ""
 
