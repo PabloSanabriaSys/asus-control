@@ -1,6 +1,6 @@
 # ASUS Control
 
-Applet en español para la bandeja de KDE Plasma (Wayland) que controla un ASUS ROG Strix G16 G615JH con asusctl 6.5.0.
+Applet (plasmoide) para la bandeja de KDE Plasma (Wayland) que controla un ASUS ROG Strix G16 G615JH con asusctl 6.5.0. Se muestra en inglés o en español según el idioma del sistema.
 
 ## Funciones
 
@@ -22,10 +22,15 @@ Applet en español para la bandeja de KDE Plasma (Wayland) que controla un ASUS 
 - La gestión de perfiles al conectar o desconectar la corriente sigue en manos de asusd. El applet cambia solo el perfil activo, sin tocar los perfiles de corriente y batería.
 - **Carga y visibilidad:** Plasma carga el applet en cada sesión, así que no hay autoarranque ni instancias propias. Para ocultarlo: clic derecho en la flecha de la bandeja → *Configurar la bandeja del sistema* → *Entradas*.
 
+### Idioma
+
+El applet usa el idioma de Plasma (*Preferencias del sistema → Región e idioma*): español si es `es`, inglés en cualquier otro caso. Los nombres de perfil (Quiet, Balanced, Performance) y de modo de ventilación son nombres propios y no se traducen.
+
 ## Requisitos
 
 - Fedora con KDE Plasma 6 (Wayland) y `asusctl`/`asusd` 6.5.0.
 - `/usr/bin/python3` 3.11 o superior. El backend solo usa la biblioteca estándar.
+- `gettext` (`msgfmt`) para compilar las traducciones durante la instalación.
 
 ## Instalación
 
@@ -64,6 +69,15 @@ PYTHONPATH=src python3 -m asus_control state               # backend sin instala
 plasmawindowed com.pablosanabria.asuscontrol               # applet instalado, en ventana
 ```
 
-Tras editar el QML: `kpackagetool6 -t Plasma/Applet --upgrade plasmoid` y vuelve a abrir el applet o reinicia plasmashell. El backend sigue una arquitectura por capas (`domain`, `application`, `infrastructure`, `presentation`), descrita junto con las pruebas en [docs/README.md](docs/README.md#arquitectura).
+Tras editar el QML, vuelve a ejecutar `scripts/install.sh` (compila las traducciones y actualiza el applet).
+
+**Traducciones:** todo texto visible del QML va en `i18n()` con el inglés como idioma base. Después de añadir o cambiar textos:
+
+```sh
+scripts/update-translations.sh          # actualiza plasmoid/translate/template.pot y es.po
+# traduce las entradas nuevas de plasmoid/translate/es.po
+scripts/update-translations.sh --check  # también lo ejecuta pytest
+LANGUAGE=es plasmawindowed com.pablosanabria.asuscontrol   # probar en español
+``` El backend sigue una arquitectura por capas (`domain`, `application`, `infrastructure`, `presentation`), descrita junto con las pruebas en [docs/README.md](docs/README.md#arquitectura).
 
 Se usan Conventional Commits (`feat:`, `fix:`, `docs:`, `build:`, `refactor:`…), sin atribuciones de coautor automáticas. No hay un remoto de GitHub configurado todavía.

@@ -30,7 +30,7 @@ plasmoid/ (QML)  ──sh──▶  asus-control <orden>  ──▶  presentatio
 - **Formatos externos fuera del dominio:** el argumento `med` de asusctl, el formato `40c:51,…` de las curvas y los números de zona de D-Bus viven en infraestructura. Las etiquetas en español viven en presentación.
 - **CLI:**
   - `argparse` solo acepta valores cerrados, derivados de los enums. Cada ajuste se declara una vez en la tabla `_SETTINGS`.
-  - Un error esperado (`AsusControlError`) devuelve `ok: false` con el mensaje y el estado actual.
+  - Un error esperado (`AsusControlError`) devuelve `ok: false`, un `error` con código estable (ver [Idiomas](#idiomas)) y el estado actual.
   - Un error no previsto devuelve código 1 con la traza en stderr.
 - **Confirmación de cambios:** cada acción vuelve a leer el valor. Si no coincide, se lanza `VerificationError`.
 
@@ -39,6 +39,18 @@ plasmoid/ (QML)  ──sh──▶  asus-control <orden>  ──▶  presentatio
 - `main.qml` ejecuta el backend con el motor `executable` de Plasma5Support. Una cola garantiza que solo corra una orden a la vez y que no se dupliquen lecturas pendientes. Los valores se citan para `sh`, aunque solo provienen de listas fijas.
 - `FullRepresentation.qml` es el popup; `SegmentedRow.qml`, `Section.qml` y `SensorTile.qml` son componentes reutilizables.
 - Los botones y el interruptor siguen siempre al estado leído: tras un clic se vuelven a enlazar con él, así que nunca se marcan de forma optimista.
+
+### Idiomas
+
+- **Un solo punto de traducción, el applet.** El backend no produce textos para el usuario: el estado lleva valores crudos (`"Discharging"`, `"medium"`) y los errores, códigos estables con sus datos.
+  - Ejemplos: `{"code": "fanModeFailed", "mode": "Ultra", "restored": true}` o `{"code": "notConfirmed", "setting": "profile"}`.
+  - `presentation/serialization.py` convierte cada excepción del dominio en su código.
+  - `plasmoid/contents/ui/Texts.qml` la convierte en una frase con `i18n()`.
+- **Catálogos:** el inglés es el idioma base. Las traducciones están en `plasmoid/translate/*.po` (dominio `plasma_applet_com.pablosanabria.asuscontrol`).
+- **Instalación:** `scripts/install.sh` compila cada `.po` en `contents/locale/<idioma>/LC_MESSAGES/` dentro de una copia temporal del paquete, y Plasma carga esa traducción del propio paquete. En el repositorio no se guardan `.mo`.
+- **Mantenimiento:** `scripts/update-translations.sh` extrae las cadenas con `xgettext`. Con `--check` falla si la plantilla no coincide con el QML o si queda alguna entrada sin traducir; `tests/test_translations.py` lo ejecuta.
+- **Errores técnicos:** el detalle de un error de acceso al hardware, como la salida de asusctl, se muestra sin traducir dentro del mensaje traducido.
+- **Metadatos:** la descripción del applet (`metadata.json`) y la entrada del lanzador incluyen versiones `[es]`.
 
 ### Pruebas por capa (`tests/`)
 
@@ -115,8 +127,9 @@ Cubren:
 - Simulación con estado de asusd: los cuatro modos, el rechazo fuera de Balanced, un fallo parcial con recuperación, una recuperación fallida, una escritura no confirmada y el bloqueo entre procesos.
 - Sensores sobre un sysfs falso con números hwmon distintos.
 - Lecturas que nunca escriben en el hardware.
-- Serialización JSON, cada orden `set` de la CLI, errores esperados como `ok: false`, rechazo de argumentos no válidos y código de salida ante errores no previstos.
+- Serialización JSON, códigos de error, cada orden `set` de la CLI, errores esperados como `ok: false`, rechazo de argumentos no válidos y código de salida ante errores no previstos.
 - Regla de dependencias entre capas (`tests/test_architecture.py`).
+- Traducciones completas y al día (`tests/test_translations.py`).
 
 El QML no tiene pruebas automáticas (no hay `qmltestrunner` ni `plasmoidviewer` instalados). Se verifica en Plasma con `plasmawindowed` y revisando `journalctl --user -u plasma-plasmashell`.
 
@@ -128,6 +141,7 @@ El QML no tiene pruebas automáticas (no hay `qmltestrunner` ni `plasmoidviewer`
 - Brillo Apagado/Bajo/Medio/Alto y límite 80/100/60 % aplicados y confirmados.
 - Con el bloqueo tomado, `alternar-ventilacion` sale sin hacer cambios. El ciclo completo del script es reconocido en cada paso.
 - Applet instalado con `scripts/install.sh`: Plasma lo añade automáticamente a la bandeja. `plasmawindowed` muestra el estado real y el journal no registra errores QML del applet.
+- Con el sistema en inglés el applet aparece en inglés, y con `LANGUAGE=es` en español, cargando el `.mo` incluido en el paquete.
 
 ## Limitaciones conocidas
 
