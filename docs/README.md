@@ -2,135 +2,122 @@
 
 ## Arquitectura
 
-El proyecto es un **plugin de Plasma** (plasmoide de la bandeja) con un backend Python sin dependencias externas. En Wayland solo Plasma puede anclar un popup al icono de la bandeja; por eso la interfaz es QML y toda la lógica está en Python.
+ASUS Control tiene dos partes:
+
+- **El applet** (`plasmoid/`, QML): la interfaz de la bandeja. Lee y escribe directamente en asusd por D-Bus los ajustes simples, y recibe sus cambios en vivo.
+- **El backend** (`src/asus_control/`, Python sin dependencias externas): la ventilación, que necesita bloqueo, verificación y recuperación, y la lectura de sensores y batería. El applet lo ejecuta como orden: `asus-control state` o `asus-control set …`, que responden con una línea JSON.
+
+En Wayland solo Plasma puede anclar un popup al icono de la bandeja, por eso la interfaz es un plasmoide y no una aplicación independiente.
 
 ```
-plasmoid/ (QML)  ──sh──▶  asus-control <orden>  ──▶  presentation → application → domain
-                                                                         ▲
-                                                     infrastructure ─────┘ (implementa los puertos)
+                    ┌── D-Bus (en vivo) ──▶ asusd: perfil, brillo, límite de carga, cinta LED
+plasmoid/ (QML) ────┤
+                    └── sh ──▶ asus-control ──▶ asusd (ventilación) + sysfs (sensores, batería)
 ```
 
-### Capas del backend (`src/asus_control/`)
+| Ajuste | Lectura | Escritura | Confirmación |
+|---|---|---|---|
+| Perfil, brillo, límite de carga, cinta LED | `AsusdLive.qml` (`DBus.Properties`), en vivo por `PropertiesChanged` | `busctl set-property` desde QML | el `PropertiesChanged` de asusd; si no llega en 3 s, error «no confirmado» |
+| Ventilación | backend (`asus-control state`) | backend (`asus-control set fan …`) | respuesta verificada del backend |
+| Sensores y batería | backend, cada 2 s con el popup abierto | — | — |
+
+### Backend por capas
 
 | Capa | Contenido | Puede importar |
 |---|---|---|
-| `domain/` | `models.py` (enums y dataclasses inmutables), `errors.py`, `fan_modes.py` (curvas de `alternar-ventilacion` y detección del modo) | nada |
-| `application/` | `ports.py` (`PlatformPort`, `LightbarPort`, `SensorPort`, `FanLock`), `fan_service.py`, `hardware_service.py` (casos de uso) | `domain` |
-| `infrastructure/` | `asusd.py` (adaptadores sobre D-Bus de asusd), `busctl.py` (cliente D-Bus), `sysfs.py`, `fan_lock.py`, `process.py`, `errors.py` | `domain`, `application` |
-| `presentation/` | `cli.py` (órdenes y JSON), `serialization.py`, `labels.py` (textos en español) | `domain`, `application` |
-| `bootstrap.py` | Raíz de composición: crea los adaptadores, los inyecta en los servicios y arranca la CLI | todo |
+| `domain/` | `models.py` (enums y dataclasses inmutables), `errors.py`, `fan_modes.py` (curvas y detección del modo) | nada |
+| `application/` | `ports.py` (`PlatformPort`, `LightbarPort`, `SensorPort`, `FanLock`), `fan_service.py`, `hardware_service.py` | `domain` |
+| `infrastructure/` | `asusd.py` (adaptadores sobre D-Bus), `busctl.py` (cliente D-Bus), `sysfs.py`, `fan_lock.py`, `process.py`, `errors.py` | `domain`, `application` |
+| `presentation/` | `cli.py` (órdenes), `serialization.py` (estado y errores a JSON) | `domain`, `application` |
+| `bootstrap.py` | Raíz de composición: crea los adaptadores y los inyecta en los servicios | todo |
 
-- **Regla de dependencias:** las dependencias apuntan hacia dentro. `tests/test_architecture.py` la hace cumplir analizando los imports, y además comprueba que el dominio no use E/S (`subprocess`, `json`, `fcntl`).
-- **Puertos y adaptadores:** la aplicación define con `Protocol` lo que necesita y la infraestructura lo implementa; mypy verifica que cada adaptador cumpla su puerto.
+- **Regla de dependencias:** las dependencias apuntan hacia dentro. `tests/test_architecture.py` la hace cumplir analizando los imports, y además comprueba que el dominio no haga E/S.
+- **Puertos y adaptadores:** la aplicación define con `Protocol` lo que necesita y mypy verifica que cada adaptador lo cumpla.
   - `AsusdPlatform` implementa `PlatformPort`.
   - `AsusdLightbar` implementa `LightbarPort`.
   - `SysfsSensors` implementa `SensorPort`.
   - `fan_lock` implementa `FanLock`.
-- **Errores:** la aplicación solo conoce `HardwareAccessError` (dominio). La infraestructura lanza las subclases concretas `CommandError` y `ParseError`.
-- **Formatos externos fuera del dominio:** los códigos numéricos de asusd (perfil, brillo, zonas) y las firmas D-Bus viven en infraestructura. Las etiquetas en español viven en presentación.
+- **Errores:** la aplicación solo conoce `HardwareAccessError`; la infraestructura lanza sus subclases (`CommandError`, `ParseError`). Los errores del dominio llevan datos estructurados, no textos.
 - **CLI:**
-  - `argparse` solo acepta valores cerrados, derivados de los enums. Cada ajuste se declara una vez en la tabla `_SETTINGS`.
-  - Un error esperado (`AsusControlError`) devuelve `ok: false`, un `error` con código estable (ver [Idiomas](#idiomas)) y el estado actual.
-  - Un error no previsto devuelve código 1 con la traza en stderr.
-- **Confirmación de cambios:** cada acción vuelve a leer el valor. Si no coincide, se lanza `VerificationError`.
+  - Solo acepta valores cerrados, derivados de los enums.
+  - Un error esperado devuelve `ok: false` con un código estable y el estado actual.
+  - Un error no previsto devuelve código de salida 1, con la traza en stderr.
+- **Verificación:** cada cambio se confirma con una lectura posterior; si no coincide, se lanza `VerificationError`.
 
-### Plugin de Plasma (`plasmoid/`)
+La CLI también admite `set profile|brightness|charge-limit|lightbar` (útil desde la terminal). El applet no las usa: escribe esos ajustes directamente.
 
-En esta rama (`perf/qml-dbus`), el applet habla directamente con asusd para todo lo que no necesita la lógica del backend:
+### Applet
 
-| Ajuste | Lectura | Escritura | Confirmación |
-|---|---|---|---|
-| Perfil, brillo, límite de carga, cinta LED | `AsusdLive.qml`: `DBus.Properties` (módulo `org.kde.plasma.workspace.dbus`), en vivo por `PropertiesChanged` | `busctl set-property` desde QML (~10 ms) | el `PropertiesChanged` de asusd; si no llega en 3 s, error «no confirmado» |
-| Ventilación | backend Python (`asus-control state`) | backend Python por D-Bus (bloqueo compartido y recuperación) | respuesta verificada del backend (~140–320 ms) |
-| Sensores y batería | backend Python (sysfs), cada 2 s con el popup abierto | — | — |
+- **`main.qml`:** coordina el applet.
+  - Guarda los cambios pendientes (`pending`): el valor elegido se muestra al instante y los demás controles siguen disponibles. Al confirmarse, se muestra el valor leído; si falla, el control vuelve al valor real y aparece el error.
+  - Gestiona la cola de órdenes del backend: una a la vez, las acciones antes que las lecturas, y solo el último valor si se cambia el mismo ajuste varias veces seguidas.
+- **`AsusdLive.qml`:** lecturas en vivo y escrituras directas en asusd.
+  - Descubre solo la ruta del dispositivo Aura (`GetManagedObjects`).
+  - Si asusd se reinicia, vuelve a leer todo.
+- **`FullRepresentation.qml`:** el popup. Usa los componentes `Section`, `SegmentedRow`, `BrightnessSlider` y `SensorTile`.
+- **`Texts.qml`:** textos que dependen de datos (códigos de error, estado de la batería). Ver [Idiomas](#idiomas).
+- **Iconos** (`plasmoid/icons/`):
+  - `asus-control.svg` es el icono a color para el lanzador.
+  - Los `*-symbolic.svg` son monocromos y Plasma los colorea según el tema (clase `ColorScheme-Text`): el logo de la bandeja y los iconos de teclado y cinta.
+  - Tienen nombres propios para que ningún tema de iconos los sustituya.
 
-- **Sin sondeo para asusd:** los cambios hechos con otra herramienta, como `asusctl`, el script o la conexión del cargador, aparecen al instante.
-- **Limitaciones del módulo QML de D-Bus de Plasma 6.7, verificadas en el equipo:**
-  - No puede enviar `uint32` ni `byte` dentro de un `variant`, así que no sirve para `Properties.Set`.
-  - Escribir en su mapa de propiedades no llega al bus.
-  - No envía estructuras (`SetFanCurve`, `LedPower`).
-  - Las estructuras que llegan en `PropertiesChanged` quedan vacías, así que `LedPower` se relee con `update()`.
-  - Las listas son secuencias de Qt: `Array.isArray()` devuelve `false`.
-- **Lógica fuera de Python:** los códigos de asusd y la conservación de la zona del teclado al escribir `LedPower` están en `AsusdLive.qml`. Esa parte no tiene tests automáticos.
+**Limitaciones del módulo QML de D-Bus de Plasma** (`org.kde.plasma.workspace.dbus`), y cómo se sortean:
 
-- `main.qml` ejecuta el backend con el motor `executable` de Plasma5Support. Una cola garantiza que solo corra una orden a la vez y que no se dupliquen lecturas pendientes. Los valores se citan para `sh`, aunque solo provienen de listas fijas.
-- `FullRepresentation.qml` es el popup y usa los márgenes estándar de la bandeja. `SegmentedRow.qml`, `BrightnessSlider.qml`, `Section.qml` y `SensorTile.qml` son componentes reutilizables.
-- Los botones, el slider y el interruptor siguen siempre al estado leído: tras un clic, o al soltar el slider, se vuelven a enlazar con él, así que nunca se marcan de forma optimista.
+| Limitación | Solución |
+|---|---|
+| No puede enviar `uint32` ni `byte` dentro de un `variant`, y escribir en su mapa de propiedades no llega al bus | Las escrituras usan `busctl set-property` |
+| No envía estructuras | `LedPower` se escribe con `busctl`; las curvas de ventilación, desde el backend |
+| Las estructuras que llegan en `PropertiesChanged` quedan vacías | `LedPower` se relee con `update()` y se conserva la última lectura válida |
+| Los enteros sin signo llegan envueltos (`{value: n}`) | Se desenvuelven al leer |
+| Las listas son secuencias de Qt (`Array.isArray()` devuelve `false`) | Se comprueban como objetos con `length` |
 
-### Idiomas
+## Fuentes de datos
 
-- **Un solo punto de traducción, el applet.** El backend no produce textos para el usuario: el estado lleva valores crudos (`"Discharging"`, `"medium"`) y los errores, códigos estables con sus datos.
-  - Ejemplos: `{"code": "fanModeFailed", "mode": "Ultra", "restored": true}` o `{"code": "notConfirmed", "setting": "profile"}`.
-  - `presentation/serialization.py` convierte cada excepción del dominio en su código.
-  - `plasmoid/contents/ui/Texts.qml` la convierte en una frase con `i18n()`.
-- **Catálogos:** el inglés es el idioma base. Las traducciones están en `plasmoid/translate/*.po` (dominio `plasma_applet_com.pablosanabria.asuscontrol`).
-- **Instalación:** `scripts/install.sh` compila cada `.po` en `contents/locale/<idioma>/LC_MESSAGES/` dentro de una copia temporal del paquete, y Plasma carga esa traducción del propio paquete. En el repositorio no se guardan `.mo`.
-- **Mantenimiento:** `scripts/update-translations.sh` extrae las cadenas con `xgettext`. Con `--check` falla si la plantilla no coincide con el QML o si queda alguna entrada sin traducir; `tests/test_translations.py` lo ejecuta.
-- **Errores técnicos:** el detalle de un error de acceso al hardware, como la salida de busctl, se muestra sin traducir dentro del mensaje traducido.
-- **Metadatos:** la descripción del applet (`metadata.json`) y la entrada del lanzador incluyen versiones `[es]`.
+Todo pasa por la interfaz D-Bus de asusd (servicio `xyz.ljones.Asusd`), la misma que usa `asusctl`. El backend usa `busctl --json=short`, que tarda unos 8 ms por llamada.
 
-### Pruebas por capa (`tests/`)
+| Dato | Origen |
+|---|---|
+| Perfil | `Platform.PlatformProfile` (0 Balanced, 1 Performance, 2 Quiet). `PlatformProfileOnAc/OnBattery` no se tocan. |
+| Límite de carga | `Platform.ChargeControlEndThreshold` |
+| Brillo | `Aura.Brightness` (0 Off … 3 High) |
+| Cinta LED | `Aura.SupportedPowerZones` y `Aura.LedPower`. `LedPower` se escribe completo, conservando la zona del teclado. |
+| Ventilación | `FanCurves.FanCurveData`, `SetFanCurve` y `SetFanCurvesEnabled` sobre Balanced (código 0) |
+| Sensores | sysfs: hwmon `asus` (`cpu_fan`, `gpu_fan`, `mid_fan`) y `coretemp` (`Package id 0`) |
+| Batería | sysfs: `power_supply` con `type=Battery` (excepto periféricos, `scope=Device`) y `type=Mains` |
 
-- `domain/`: reglas puras, incluida la comparación con el script real.
-- `application/`: casos de uso con dobles en memoria de los puertos (`tests/fakes.py`).
-- `infrastructure/`: respuestas D-Bus reales en `fixtures/`, procesos, bloqueo entre procesos, sysfs falso y una integración con `fake_asusd_bus.py`, que simula `busctl` frente a asusd con estado.
-- `presentation/`: CLI y JSON.
-
-### Fuentes de datos
-
-Todo pasa por la interfaz D-Bus de asusd (servicio `xyz.ljones.Asusd`), la misma que usa `asusctl`, sin arrancar un cliente por cada orden. El applet usa el módulo QML de D-Bus y `busctl`; el backend Python, `busctl --json=short` (~8 ms por llamada, frente a 65–105 ms de cada proceso `asusctl`).
-
-| Dato | D-Bus | Quién lo usa |
-|---|---|---|
-| Perfil | `Platform.PlatformProfile` (0 Balanced, 1 Performance, 2 Quiet); `PlatformProfileOnAc/OnBattery` no se tocan | applet (y backend, para revalidar Balanced) |
-| Límite de carga | `Platform.ChargeControlEndThreshold` | applet |
-| Brillo | `Aura.Brightness` (0 Off … 3 High) | applet |
-| Cinta LED | `Aura.SupportedPowerZones`, `Aura.LedPower` (se escribe completo, conservando la zona del teclado) | applet |
-| Ventilación | `FanCurves.FanCurveData(0)`, `SetFanCurve(0, curva)`, `SetFanCurvesEnabled(0, b)` | backend |
-| Sensores | hwmon `asus` (`cpu_fan`, `gpu_fan`, `mid_fan`) y `coretemp` (`Package id 0`), por sysfs | backend |
-| Batería | `power_supply` con `type=Battery` (sin `scope=Device`) y `type=Mains`, por sysfs | backend |
-
-Los códigos y la forma de las respuestas se verificaron en el equipo y están en `tests/fixtures/dbus_*.json`. Los dispositivos hwmon y power_supply se buscan por `name`, `*_label` y `type`, nunca por su número.
-
-### Rendimiento
-
-| Operación | Antes (asusctl) | Ahora |
-|---|---|---|
-| Ver un cambio en el control | tras la respuesta (~0,5 s) | al instante (valor pendiente) |
-| Confirmar perfil, brillo, límite o cinta | ~460 ms | ~10–30 ms (busctl + aviso de asusd) |
-| Confirmar un modo de ventilación | ~700 ms | ~140–320 ms (backend por D-Bus) |
-| Reflejar cambios externos de asusd | sondeo cada 2–10 s | al instante (`PropertiesChanged`) |
+- Los códigos y la forma de las respuestas se verificaron en el equipo y están en `tests/fixtures/dbus_*.json`.
+- Los dispositivos de sysfs se buscan por `name`, `*_label` y `type`, nunca por su número, que cambia entre arranques.
 
 ## Ventilación
 
-- `fans.py` copia literalmente `TEMPS` y `CURVES` de `~/.local/bin/alternar-ventilacion`. La prueba `test_curves_are_identical_to_alternar_ventilacion` lee el script con `ast` y falla si alguna curva cambia.
-- **Bloqueo compartido:** el mismo `flock` no bloqueante sobre `$XDG_RUNTIME_DIR/alternar-ventilacion.lock`. Si el script está aplicando un cambio, la app avisa «Hay otro cambio de ventilación en curso», y viceversa (el script sale sin hacer nada).
-- **Secuencia de aplicación:**
+- **Modos:**
+  - Normal desactiva las curvas personalizadas, con lo que vuelve el control automático.
+  - Extra, Ultra y Ultra Mega escriben tres curvas fijas (CPU, GPU y central) sobre 8 temperaturas.
+- **Solo en Balanced:** fuera de Balanced, el cambio se rechaza sin tocar el perfil.
+- **Secuencia:**
   1. Tomar el bloqueo.
   2. Revalidar que el perfil sea Balanced.
-  3. Escribir las tres curvas.
-  4. Activarlas.
-  5. Volver a leer y comparar.
-- **Normal:** desactiva las curvas personalizadas.
-- **Recuperación:** si falla cualquier paso posterior a la revalidación, la app desactiva las curvas, comprueba que se haya recuperado el control automático e informa si se logró o no.
+  3. Escribir las curvas y activarlas.
+  4. Volver a leer y comparar.
+- **Recuperación:** si falla cualquier paso posterior a la revalidación, se desactivan las curvas, se comprueba que vuelva el control automático y se informa de si se logró.
 - **Curvas desconocidas:** si las curvas activas no coinciden con ningún modo, el applet indica «Curvas personalizadas» y no marca ningún botón.
-- **Acceso «Alternar ventilación»:** el script, su `.desktop` y su atajo de teclado siguen funcionando sin cambios.
+
+### Compatibilidad con `alternar-ventilacion` (opcional)
+
+Las curvas de `domain/fan_modes.py` son las del script personal `~/.local/bin/alternar-ventilacion`, que alterna los mismos modos con un atajo de teclado. Ambos comparten un bloqueo (`flock` sobre `$XDG_RUNTIME_DIR/alternar-ventilacion.lock`), así que no pueden cambiar la ventilación a la vez.
+
+- Si el script existe, `tests/domain/test_fan_modes.py` comprueba que las curvas sigan siendo idénticas.
+- Si no existe, ese test se omite y todo lo demás funciona igual.
 
 ## Cinta LED
 
-### Diagnóstico (17-10-2026)
+asusd 6.5.0 no tiene una entrada para el G615JH en `/usr/share/asusd/aura_support.ron`. Usa entonces una configuración genérica que solo ofrece la zona del teclado (`SupportedPowerZones = [1]`), y la cinta LED no aparece.
 
-- `asusctl info` identifica la placa como `G615JH`. El teclado Aura es `0b05:19b6`.
-- `/usr/share/asusd/aura_support.ron` incluye `G615JHR`, pero no `G615JH`. asusd registra *«the aura_support.ron file has no entry for this model: G615JH, 19b6. Using a default»* y solo publica la zona Keyboard (`SupportedPowerZones = [1]`).
-- **La corrección anterior no quedó guardada:** el journal muestra que a las 02:12:16 asusd cargó `/etc/asusd/asusd_user_ledmodes.ron` (*«Matched to G615JH»*). Pero tras el reinicio de las 02:12:56 el archivo ya no existía y volvió la configuración genérica.
-
-### Corrección persistente (opcional, una sola vez)
-
-[`system/asusd_user_ledmodes.ron`](../system/asusd_user_ledmodes.ron) contiene una única entrada `G615JH`/`19b6` con `power_zones: [Keyboard, Lightbar]`. asusd 6.5.0 lee esa ruta y la combina con el archivo del sistema, que no se modifica.
+[`system/asusd_user_ledmodes.ron`](../system/asusd_user_ledmodes.ron) define el modelo (`G615JH`, teclado `19b6`) con las zonas `Keyboard` y `Lightbar`. asusd lee esa ruta y la combina con su lista, que no se modifica.
 
 ```sh
 scripts/lightbar-fix.sh status        # diagnóstico, sin cambios
-sudo scripts/lightbar-fix.sh apply    # respaldo + instalación + reinicio de asusd + encendido
+sudo scripts/lightbar-fix.sh apply    # instala la definición y enciende la cinta
 sudo scripts/lightbar-fix.sh revert   # vuelve a la configuración genérica
 ```
 
@@ -139,9 +126,23 @@ sudo scripts/lightbar-fix.sh revert   # vuelve a la configuración genérica
 2. Respalda `/etc/asusd/asusd_user_ledmodes.ron` (si existe) y `/etc/asusd/aura_19b6.ron` como `*.bak-FECHA`.
 3. Instala el archivo con permisos 0644 y reinicia asusd.
 4. Comprueba que la zona Lightbar aparezca en D-Bus.
-5. Ejecuta `asusctl aura power lightbar --boot --awake`.
+5. Enciende la cinta.
 
-La aplicación nunca modifica `/etc`. Sin la corrección, la sección «Cinta LED» permanece oculta.
+El applet nunca modifica `/etc`: sin la definición, la fila de la cinta LED no aparece.
+
+## Idiomas
+
+- **Un solo punto de traducción, el applet.** El backend no produce textos para el usuario.
+  - El estado lleva valores crudos, como `"Discharging"` o `"medium"`.
+  - Los errores llevan códigos estables con sus datos, por ejemplo `{"code": "fanModeFailed", "mode": "Ultra", "restored": true}` o `{"code": "notConfirmed", "setting": "profile"}`.
+  - `presentation/serialization.py` convierte cada excepción en su código y `Texts.qml` la convierte en una frase con `i18n()`.
+- **Catálogos:** el inglés es el idioma base. Las traducciones están en `plasmoid/translate/*.po` (dominio `plasma_applet_com.pablosanabria.asuscontrol`); no hay `en.po`, porque el texto del código ya es el inglés.
+- **Instalación:**
+  - `scripts/install.sh` compila cada `.po` en `contents/locale/<idioma>/LC_MESSAGES/` dentro de una copia temporal del paquete, y Plasma carga la traducción del propio paquete.
+  - El repositorio no guarda archivos `.mo`.
+- **Mantenimiento:** `scripts/update-translations.sh` extrae las cadenas con `xgettext` y actualiza los `.po`, eliminando las entradas de textos que ya no existen. Con `--check` falla si la plantilla no coincide con el QML o si queda algo sin traducir.
+- **Nombres propios:** los perfiles (Quiet, Balanced, Performance) y los modos de ventilación no se traducen.
+- **Detalles técnicos:** el detalle de un error de acceso al hardware, por ejemplo la salida de `busctl`, se muestra sin traducir dentro del mensaje traducido.
 
 ## Pruebas
 
@@ -149,31 +150,20 @@ La aplicación nunca modifica `/etc`. Sin la corrección, la sección «Cinta LE
 .venv/bin/pytest
 ```
 
-Cubren:
-- Parsers con salidas reales capturadas en `tests/fixtures/`.
-- Argumentos exactos de cada orden.
-- Simulación con estado de asusd: los cuatro modos, el rechazo fuera de Balanced, un fallo parcial con recuperación, una recuperación fallida, una escritura no confirmada y el bloqueo entre procesos.
-- Sensores sobre un sysfs falso con números hwmon distintos.
-- Lecturas que nunca escriben en el hardware.
-- Serialización JSON, códigos de error, cada orden `set` de la CLI, errores esperados como `ok: false`, rechazo de argumentos no válidos y código de salida ante errores no previstos.
-- Regla de dependencias entre capas (`tests/test_architecture.py`).
-- Traducciones completas y al día (`tests/test_translations.py`).
+| Carpeta | Qué cubre |
+|---|---|
+| `tests/domain/` | Detección de modos de ventilación y equivalencia con `alternar-ventilacion` |
+| `tests/application/` | Casos de uso con dobles en memoria de los puertos (`tests/fakes.py`): los cuatro modos, rechazo fuera de Balanced, fallo parcial con recuperación, recuperación fallida, escritura no confirmada, bloqueo ocupado, lecturas que nunca escriben |
+| `tests/infrastructure/` | Respuestas D-Bus reales (`fixtures/`), argumentos de `busctl`, integración con un asusd simulado con estado (`fake_asusd_bus.py`), sysfs falso con números hwmon distintos, bloqueo entre procesos, ejecución de procesos |
+| `tests/presentation/` | Órdenes de la CLI, JSON del estado y códigos de error |
+| `tests/test_architecture.py` | Regla de dependencias entre capas |
+| `tests/test_translations.py` | Traducciones completas y al día |
 
-El QML no tiene pruebas automáticas (no hay `qmltestrunner` ni `plasmoidviewer` instalados). Se verifica en Plasma con `plasmawindowed` y revisando `journalctl --user -u plasma-plasmashell`.
-
-### Verificación manual realizada en el equipo
-
-- Cambio de Quiet → Performance → Balanced, confirmado con `asusctl profile get`. Los perfiles de corriente y batería (Balanced/Quiet) no cambian.
-- En Quiet y Performance, la ventilación se rechaza sin cambiar el perfil.
-- Extra → Ultra → Ultra Mega → Normal aplicados y detectados, también con la orden citada tal como la ejecuta el applet (`sh -c "… set 'fan' 'Ultra Mega'"`).
-- Brillo Apagado/Bajo/Medio/Alto y límite 80/100/60 % aplicados y confirmados.
-- Con el bloqueo tomado, `alternar-ventilacion` sale sin hacer cambios. El ciclo completo del script es reconocido en cada paso.
-- Applet instalado con `scripts/install.sh`: Plasma lo añade automáticamente a la bandeja. `plasmawindowed` muestra el estado real y el journal no registra errores QML del applet.
-- Con el sistema en inglés el applet aparece en inglés, y con `LANGUAGE=es` en español, cargando el `.mo` incluido en el paquete.
+El QML no tiene pruebas automáticas. Se comprueba en Plasma con `plasmawindowed com.pablosanabria.asuscontrol` y revisando `journalctl --user -u plasma-plasmashell`.
 
 ## Limitaciones conocidas
 
-- **Brillo compartido:** asusd 6.5.0 solo expone un brillo (`Aura.Brightness`) y el firmware lo aplica a teclado y cinta por igual; se comprobó en el equipo. Tampoco admite color por zona para la cinta en este modelo, así que no hay control de intensidad separado.
-- **Cinta LED:** queda oculta mientras no se aplique `lightbar-fix.sh`. El apagado (`aura power lightbar` sin `--awake`) solo se podrá verificar en el equipo después de aplicar la corrección.
-- **Costo de cada lectura:** cada lectura arranca un proceso Python (~0,5 s, en segundo plano). Con el popup abierto se lee cada 2 s; cerrado, solo el perfil cada 10 s.
-- **Tamaño del popup:** el popup de la bandeja tiene el tamaño que define la bandeja de Plasma. Si el contenido no cabe, se desplaza verticalmente.
+- **Brillo compartido:** asusd expone un único brillo (`Aura.Brightness`) y el firmware lo aplica a teclado y cinta por igual. En el G615JH, la cinta tampoco admite un color propio por zona, así que no hay forma de regular su intensidad por separado.
+- **Lógica en QML sin tests:** los códigos de asusd y la escritura de `LedPower` que usa el applet viven en `AsusdLive.qml`, duplicando la del backend, que sí tiene tests.
+- **Lecturas sobrantes del backend:** `asus-control state` también lee perfil, brillo, límite de carga y cinta, aunque el applet los obtiene en vivo. Son unas pocas llamadas D-Bus de más cada 2 s, solo con el popup abierto.
+- **Tamaño del popup:** lo define la bandeja de Plasma. Si el contenido no cabe, se desplaza verticalmente.

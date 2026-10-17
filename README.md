@@ -1,36 +1,31 @@
 # ASUS Control
 
-Applet (plasmoide) para la bandeja de KDE Plasma (Wayland) que controla un ASUS ROG Strix G16 G615JH con asusd 6.5.0 (paquete asusctl). Se muestra en inglés o en español según el idioma del sistema.
+Applet (plasmoide) para la bandeja de KDE Plasma 6 que controla un portátil ASUS ROG a través de `asusd`. Está hecho y probado para el **ROG Strix G16 G615JH** con asusd 6.5.0 en Fedora (Wayland). Se muestra en inglés o en español según el idioma del sistema.
 
 ## Funciones
 
-- **Rendimiento:** Quiet, Balanced y Performance. Siempre muestra el perfil real.
-- **Ventilación:** Normal, Extra, Ultra y Ultra Mega, con las mismas curvas que `~/.local/bin/alternar-ventilacion`. La sección solo aparece en Balanced y nunca cambia el perfil por su cuenta.
-- **Iluminación:** slider de brillo con los cuatro niveles del hardware (Apagado, Bajo, Medio y Alto). asusd expone un único brillo, compartido por el teclado y la cinta LED.
-- **Cinta LED:** interruptor de encendido; no tiene brillo propio. Solo aparece si asusd confirma que admite la zona Lightbar (ver [docs/README.md](docs/README.md#cinta-led)).
-- **Batería:** porcentaje con el icono de batería del tema (con enchufe si está conectada), estado de carga y límite de carga de 60, 80 o 100 %.
-- **Sensores:** temperatura del paquete CPU y RPM de los ventiladores de CPU, GPU y central, en la parte superior del popup.
+- **Rendimiento:** Quiet, Balanced y Performance.
+- **Ventilación:** modos Normal, Extra, Ultra y Ultra Mega para el perfil Balanced. La sección solo aparece en Balanced y nunca cambia el perfil por su cuenta. Normal devuelve el control automático a asusd.
+- **Iluminación:** brillo del teclado en cuatro niveles. La cinta LED se enciende y apaga con un interruptor; no tiene brillo propio porque el hardware aplica el mismo a teclado y cinta.
+- **Batería:** porcentaje, estado de carga y límite de carga de 60, 80 o 100 %.
+- **Sensores:** temperatura del paquete CPU y RPM de los ventiladores de CPU, GPU y central.
 
 ### Comportamiento
 
-- Es un applet nativo de la bandeja: un clic en el icono despliega el popup anclado a la barra, igual que los de batería o red.
-- **Lecturas:** perfil, brillo, límite de carga y cinta llegan en vivo desde asusd por D-Bus, incluidos los cambios hechos con otras herramientas. Sensores, batería y ventilación se leen al abrir el popup, tras cada acción y cada 2 s mientras está abierto.
-- **Respuesta inmediata:** el control muestra el valor elegido al instante, sin bloquear el resto. Se confirma con la lectura posterior de asusd; si no llega o falla, el control vuelve al valor real y se muestra el error.
-- Al cargar solo se leen datos; nunca se aplica ningún ajuste de hardware.
-- Si falta asusd o un sensor, se muestra «No disponible» o «—» y se deshabilitan los controles afectados.
-- **Mensajes:** solo se muestran errores, que permanecen hasta cerrarlos. Un cambio correcto no se anuncia: se ve en el propio control.
-- La gestión de perfiles al conectar o desconectar la corriente sigue en manos de asusd. El applet cambia solo el perfil activo, sin tocar los perfiles de corriente y batería.
-- **Carga y visibilidad:** Plasma carga el applet en cada sesión, así que no hay autoarranque ni instancias propias. Para ocultarlo: clic derecho en la flecha de la bandeja → *Configurar la bandeja del sistema* → *Entradas*.
-
-### Idioma
-
-El applet usa el idioma de Plasma (*Preferencias del sistema → Región e idioma*): español si es `es`, inglés en cualquier otro caso. Los nombres de perfil (Quiet, Balanced, Performance) y de modo de ventilación son nombres propios y no se traducen.
+- Un clic en el icono de la bandeja abre el popup, anclado a la barra como el resto de applets.
+- Perfil, brillo, límite de carga y cinta LED se actualizan en vivo, incluidos los cambios hechos con otras herramientas (`asusctl`, teclas Fn, conexión del cargador).
+- Al tocar un control, el cambio se ve al instante y se confirma con la lectura posterior de asusd. Si no se confirma, el control vuelve al valor real y se muestra el error.
+- Al cargarse no aplica ningún ajuste: solo lee.
+- El applet cambia solo el perfil activo. Los perfiles automáticos con y sin cargador siguen a cargo de asusd.
+- Si asusd no responde o falta un sensor, el dato aparece como «No disponible» o «—» y los controles afectados se deshabilitan.
 
 ## Requisitos
 
-- Fedora con KDE Plasma 6 (Wayland) y `asusctl`/`asusd` 6.5.0.
+- KDE Plasma 6 con `asusd` en ejecución (paquete `asusctl`).
 - `/usr/bin/python3` 3.11 o superior. El backend solo usa la biblioteca estándar.
-- `gettext` (`msgfmt`) para compilar las traducciones durante la instalación.
+- `gettext` (`msgfmt`) para compilar las traducciones al instalar.
+
+Los modos de ventilación y la detección de la cinta LED están pensados para el G615JH. En otros modelos ROG los controles generales (perfil, brillo, carga) deberían funcionar, pero no se ha probado.
 
 ## Instalación
 
@@ -39,25 +34,30 @@ scripts/install.sh               # instala y reinicia plasmashell
 scripts/install.sh --no-restart  # instala sin reiniciar Plasma
 ```
 
-Instala para el usuario actual, sin sudo ni pip:
+Instala para el usuario actual, sin sudo:
 
-| Archivo | Uso |
+| Ruta | Contenido |
 |---|---|
 | `~/.local/share/asus-control/` | Backend Python |
-| `~/.local/bin/asus-control` | Lanzador del backend (`asus-control state`, `asus-control set …`) |
-| `~/.local/share/plasma/plasmoids/com.pablosanabria.asuscontrol/` | Applet de la bandeja |
-| `~/.local/share/applications/asus-control.desktop` | Entrada en el lanzador; abre el applet en una ventana (`plasmawindowed`) |
-| `~/.local/share/icons/hicolor/scalable/apps/asus-control*.svg` | Iconos: a color para el lanzador; monocromos (`-symbolic`) para la bandeja y el popup, coloreados según el tema |
+| `~/.local/bin/asus-control` | Backend (`asus-control state`, `asus-control set …`) |
+| `~/.local/share/plasma/plasmoids/com.pablosanabria.asuscontrol/` | Applet, con sus traducciones compiladas |
+| `~/.local/share/applications/asus-control.desktop` | Entrada del lanzador: abre el applet en una ventana |
+| `~/.local/share/icons/hicolor/scalable/apps/asus-control*.svg` | Iconos |
 
-Para actualizar, vuelve a ejecutar el script. También elimina la app de bandeja Qt de versiones anteriores y su entrada de autostart.
+Plasma añade el applet a la bandeja automáticamente. Para actualizar, vuelve a ejecutar el script.
+
+### Cinta LED en el G615JH
+
+asusd 6.5.0 no incluye el G615JH en su lista de modelos y solo ofrece la zona del teclado, así que la cinta LED no aparece. `scripts/lightbar-fix.sh` instala una definición local (con respaldo y reversión); ver [docs/README.md](docs/README.md#cinta-led).
 
 ## Desinstalación
 
 ```sh
-scripts/uninstall.sh
+scripts/uninstall.sh               # reinicia plasmashell al terminar
+scripts/uninstall.sh --no-restart
 ```
 
-Elimina el applet, el backend, el icono y la entrada del lanzador, y reinicia plasmashell (usa `--no-restart` para evitarlo). No modifica `alternar-ventilacion` ni `/etc/asusd`. Si instalaste la corrección de la cinta LED, revierte con `sudo scripts/lightbar-fix.sh revert`.
+Elimina el applet, el backend, los iconos y la entrada del lanzador. No toca `/etc/asusd`: si instalaste la corrección de la cinta, revierte con `sudo scripts/lightbar-fix.sh revert`.
 
 ## Desarrollo
 
@@ -65,19 +65,23 @@ Elimina el applet, el backend, el icono y la entrada del lanzador, y reinicia pl
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/pytest
-PYTHONPATH=src python3 -m asus_control state               # backend sin instalar
-plasmawindowed com.pablosanabria.asuscontrol               # applet instalado, en ventana
+
+PYTHONPATH=src python3 -m asus_control state    # backend sin instalar
+scripts/install.sh --no-restart                 # tras editar el QML
+plasmawindowed com.pablosanabria.asuscontrol    # abrir el applet en una ventana
 ```
 
-Tras editar el QML, vuelve a ejecutar `scripts/install.sh` (compila las traducciones y actualiza el applet).
-
-**Traducciones:** todo texto visible del QML va en `i18n()` con el inglés como idioma base. Después de añadir o cambiar textos:
+**Traducciones:** todo texto visible del QML va en `i18n()`, con el inglés como idioma base. Después de añadir o cambiar textos:
 
 ```sh
-scripts/update-translations.sh          # actualiza plasmoid/translate/template.pot y es.po
+scripts/update-translations.sh                            # actualiza template.pot y es.po
 # traduce las entradas nuevas de plasmoid/translate/es.po
-scripts/update-translations.sh --check  # también lo ejecuta pytest
-LANGUAGE=es plasmawindowed com.pablosanabria.asuscontrol   # probar en español
-``` El backend sigue una arquitectura por capas (`domain`, `application`, `infrastructure`, `presentation`), descrita junto con las pruebas en [docs/README.md](docs/README.md#arquitectura).
+scripts/update-translations.sh --check                    # pytest también lo ejecuta
+LANGUAGE=es plasmawindowed com.pablosanabria.asuscontrol  # probar en español
+```
 
-Se usan Conventional Commits (`feat:`, `fix:`, `docs:`, `build:`, `refactor:`…), sin atribuciones de coautor automáticas. No hay un remoto de GitHub configurado todavía.
+La arquitectura, las fuentes de datos y las pruebas están en [docs/README.md](docs/README.md). Los commits siguen [Conventional Commits](https://www.conventionalcommits.org/).
+
+## Licencia
+
+[Apache License 2.0](LICENSE).
