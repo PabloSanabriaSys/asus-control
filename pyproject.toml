@@ -44,3 +44,8 @@ mypy_path = "src"
 packages = ["asus_control"]
 strict = true
 warn_unreachable = true
+
+[[tool.mypy.overrides]]
+# El paquete de Fedora incluye los .pyi de PySide6 pero no el marcador py.typed.
+module = ["PySide6", "PySide6.*"]
+follow_untyped_imports = true
