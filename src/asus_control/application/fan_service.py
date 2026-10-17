@@ -5,9 +5,14 @@ from __future__ import annotations
 import logging
 
 from asus_control.application.ports import FanLock, PlatformPort
-from asus_control.domain.errors import FanModeError, HardwareAccessError, VerificationError
+from asus_control.domain.errors import (
+    FanModeError,
+    FanModeRequiresBalancedError,
+    HardwareAccessError,
+    VerificationError,
+)
 from asus_control.domain.fan_modes import FAN_PROFILE, detect_mode, target_curves
-from asus_control.domain.models import FanMode, FanStatus
+from asus_control.domain.models import FanMode, FanStatus, Setting
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +30,9 @@ class FanService:
     def apply(self, mode: FanMode) -> None:
         """Aplica ``mode`` si el perfil activo es Balanced.
 
-        Lanza ``LockBusyError`` si otro proceso cambia la ventilación y ``FanModeError``
-        si no se pudo aplicar o confirmar; en ese caso intenta volver al modo automático.
+        Lanza ``LockBusyError`` si otro proceso cambia la ventilación,
+        ``FanModeRequiresBalancedError`` fuera de Balanced y ``FanModeError`` si no se pudo
+        aplicar o confirmar; en ese caso antes intenta volver al modo automático.
         """
         with self._lock():
             self._require_fan_profile()
@@ -34,16 +40,13 @@ class FanService:
                 self._write(mode)
                 self._verify(mode)
             except (HardwareAccessError, VerificationError) as exc:
-                logger.error("Fallo al aplicar %s: %s", mode, exc)
+                logger.error("Failed to apply fan mode %s: %s", mode, exc)
                 raise self._recover(mode) from exc
 
     def _require_fan_profile(self) -> None:
         # Se revalida dentro del bloqueo: el perfil pudo cambiar desde la última lectura.
         if self._platform.get_profile() is not FAN_PROFILE:
-            raise FanModeError(
-                "La ventilación solo se puede cambiar en Balanced. No se cambió el perfil.",
-                restored=None,
-            )
+            raise FanModeRequiresBalancedError
 
     def _write(self, mode: FanMode) -> None:
         curves = target_curves(mode)
@@ -53,7 +56,7 @@ class FanService:
 
     def _verify(self, mode: FanMode) -> None:
         if self.read_status().mode is not mode:
-            raise VerificationError(f"No se pudo confirmar la ventilación {mode}.")
+            raise VerificationError(Setting.FAN_MODE)
 
     def _recover(self, mode: FanMode) -> FanModeError:
         try:
@@ -61,8 +64,4 @@ class FanService:
             restored = self.read_status().mode is FanMode.NORMAL
         except HardwareAccessError:
             restored = False
-        if restored:
-            message = f"No se pudo aplicar {mode}. Se restauró el control automático."
-        else:
-            message = f"No se pudo aplicar {mode} ni restaurar el control automático."
-        return FanModeError(message, restored=restored)
+        return FanModeError(mode, restored=restored)

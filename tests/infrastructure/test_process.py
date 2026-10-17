@@ -8,11 +8,11 @@ from asus_control.infrastructure.process import SubprocessRunner
 
 
 def test_reports_failures_as_hardware_access_errors() -> None:
-    with pytest.raises(CommandError, match="falló"):
+    with pytest.raises(CommandError, match="failed"):
         SubprocessRunner("/usr/bin/false")([])
-    with pytest.raises(CommandError, match="No se encontró"):
+    with pytest.raises(CommandError, match="not found"):
         SubprocessRunner("/nonexistent/asusctl")([])
-    with pytest.raises(HardwareAccessError, match="tiempo límite"):
+    with pytest.raises(HardwareAccessError, match="timed out"):
         SubprocessRunner("/usr/bin/sleep", timeout=0.1)(["5"])
 
 

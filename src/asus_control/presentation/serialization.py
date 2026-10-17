@@ -1,11 +1,22 @@
-"""Conversión del estado del hardware al JSON que consume el applet de Plasma."""
+"""Conversión del estado y de los errores al JSON que consume el applet de Plasma.
+
+No contiene textos para el usuario: el applet traduce los valores y los códigos.
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
+from asus_control.domain.errors import (
+    AsusControlError,
+    FanModeError,
+    FanModeRequiresBalancedError,
+    HardwareAccessError,
+    LightbarUnsupportedError,
+    LockBusyError,
+    VerificationError,
+)
 from asus_control.domain.models import BatteryStatus, FanStatus, HardwareState, SensorReadings
-from asus_control.presentation.labels import CHARGING_STATE_LABELS
 
 JsonObject = dict[str, Any]
 
@@ -34,11 +45,11 @@ def _fans(fans: FanStatus | None) -> JsonObject | None:
 def _battery(battery: BatteryStatus | None) -> JsonObject | None:
     if battery is None:
         return None
-    status = battery.charging_state
     return {
         "percent": battery.percent,
         "acOnline": battery.ac_online,
-        "status": CHARGING_STATE_LABELS.get(status, status) if status else None,
+        # Valor de sysfs sin traducir: Charging, Discharging, Not charging, Full…
+        "status": battery.charging_state,
     }
 
 
@@ -49,3 +60,24 @@ def _sensors(sensors: SensorReadings) -> JsonObject:
         "gpuFan": sensors.gpu_fan_rpm,
         "midFan": sensors.mid_fan_rpm,
     }
+
+
+def error_to_json(error: AsusControlError) -> JsonObject:
+    """Código estable y datos del error; el applet compone el mensaje traducido."""
+    details: JsonObject
+    match error:
+        case FanModeRequiresBalancedError():
+            details = {"code": "fanRequiresBalanced"}
+        case FanModeError(mode=mode, restored=restored):
+            details = {"code": "fanModeFailed", "mode": mode.value, "restored": restored}
+        case LockBusyError():
+            details = {"code": "fanChangeInProgress"}
+        case LightbarUnsupportedError():
+            details = {"code": "lightbarUnsupported"}
+        case VerificationError(setting=setting):
+            details = {"code": "notConfirmed", "setting": setting.value}
+        case HardwareAccessError():
+            details = {"code": "hardwareAccess", "detail": str(error)}
+        case _:
+            details = {"code": "unknown", "detail": str(error)}
+    return details

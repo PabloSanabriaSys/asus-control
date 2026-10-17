@@ -6,7 +6,11 @@ import pytest
 
 from asus_control.application.fan_service import FanService
 from asus_control.application.hardware_service import HardwareService
-from asus_control.domain.errors import HardwareAccessError, VerificationError
+from asus_control.domain.errors import (
+    HardwareAccessError,
+    LightbarUnsupportedError,
+    VerificationError,
+)
 from asus_control.domain.models import (
     BatteryStatus,
     Brightness,
@@ -108,8 +112,9 @@ def test_changes_are_confirmed_by_reading_back() -> None:
 def test_unconfirmed_change_is_an_error(action: Callable[[HardwareService], None]) -> None:
     service = make_service(FakePlatform(ignore_writes=True))
 
-    with pytest.raises(VerificationError):
+    with pytest.raises(VerificationError) as error:
         action(service)
+    assert error.value.setting.value in {"profile", "brightness", "charge-limit"}
 
 
 def test_access_failure_propagates() -> None:
@@ -136,5 +141,5 @@ def test_lightbar_without_support() -> None:
     service = make_service(lightbar=FakeLightbar(state=None))
 
     assert service.read_state().lightbar is None
-    with pytest.raises(VerificationError):
+    with pytest.raises(LightbarUnsupportedError):
         service.set_lightbar(True)

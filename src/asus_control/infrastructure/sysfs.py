@@ -91,7 +91,7 @@ def _read_int(path: Path) -> int | None:
     try:
         return int(text)
     except ValueError:
-        logger.warning("Valor no numérico en %s: %r", path, text)
+        logger.warning("Non-numeric value in %s: %r", path, text)
         return None
 
 

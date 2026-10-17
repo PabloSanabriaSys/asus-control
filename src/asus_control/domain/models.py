@@ -23,6 +23,16 @@ class FanMode(StrEnum):
     ULTRA_MEGA = "Ultra Mega"
 
 
+class Setting(StrEnum):
+    """Ajustes que se pueden cambiar."""
+
+    PROFILE = "profile"
+    FAN_MODE = "fan"
+    BRIGHTNESS = "brightness"
+    CHARGE_LIMIT = "charge-limit"
+    LIGHTBAR = "lightbar"
+
+
 class Fan(StrEnum):
     """Ventiladores con curva configurable."""
 

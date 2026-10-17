@@ -2,8 +2,9 @@
  * Applet de bandeja de ASUS Control.
  *
  * Toda la lógica de hardware vive en el backend Python (`asus-control`), que responde
- * con una línea JSON {ok, message, state}. Aquí solo se encolan órdenes y se muestra
+ * con una línea JSON {ok, error, state}. Aquí solo se encolan órdenes y se muestra
  * el estado leído; nunca se marca un control antes de que la lectura lo confirme.
+ * Los textos se traducen con i18n() (ver Texts.qml).
  */
 import QtQuick
 import org.kde.kirigami as Kirigami
@@ -31,25 +32,28 @@ PlasmoidItem {
 
     Plasmoid.icon: "asus-control"
     Plasmoid.status: PlasmaCore.Types.ActiveStatus
-    toolTipMainText: "ASUS Control"
+    toolTipMainText: i18n("ASUS Control")
     toolTipSubText: tooltipText()
     switchWidth: Kirigami.Units.gridUnit * 16
     switchHeight: Kirigami.Units.gridUnit * 20
 
     fullRepresentation: FullRepresentation {
         applet: root
+        texts: root.texts
     }
+
+    readonly property Texts texts: Texts {}
 
     function tooltipText() {
         if (hw === null)
-            return "Leyendo estado…";
+            return i18n("Reading state…");
         if (!hw.asusdAvailable)
-            return "asusd no disponible";
-        const parts = ["Perfil " + hw.profile];
+            return i18n("asusd is not available");
+        const parts = [i18n("Profile %1", hw.profile)];
         if (hw.battery && hw.battery.percent !== null)
-            parts.push(hw.battery.percent + " %");
+            parts.push(i18n("%1 %", hw.battery.percent));
         if (hw.battery && hw.battery.acOnline !== null)
-            parts.push(hw.battery.acOnline ? "Conectado a corriente" : "Con batería");
+            parts.push(texts.powerSource(hw.battery.acOnline));
         return parts.join(" · ");
     }
 
@@ -57,19 +61,19 @@ PlasmoidItem {
 
     function refresh() {
         if (!isQueued("state"))
-            enqueue("state", false);
+            enqueue("state", null);
     }
 
     function checkProfile() {
         if (!isQueued("profile") && !isQueued("state"))
-            enqueue("profile", false);
+            enqueue("profile", null);
     }
 
-    function apply(args) {
+    function apply(setting, value) {
         if (busy)
             return;
         busy = true;
-        enqueue("set " + args.map(quote).join(" "), true);
+        enqueue("set " + quote(setting) + " " + quote(value), { setting: setting, value: String(value) });
     }
 
     function clearMessage() {
@@ -85,8 +89,9 @@ PlasmoidItem {
         return (running && running.command === command) || queue.some(item => item.command === command);
     }
 
-    function enqueue(command, isAction) {
-        queue = queue.concat([{ command: command, isAction: isAction }]);
+    /** `action` es {setting, value} para los cambios y null para las lecturas. */
+    function enqueue(command, action) {
+        queue = queue.concat([{ command: command, action: action || null }]);
         runNext();
     }
 
@@ -101,7 +106,7 @@ PlasmoidItem {
     function finish(exitCode, stdout, stderr) {
         const item = running;
         running = null;
-        if (item.isAction)
+        if (item.action !== null)
             busy = false;
         handleResponse(item, exitCode, stdout, stderr);
         runNext();
@@ -115,8 +120,8 @@ PlasmoidItem {
             response = null;
         }
         if (response === null) {
-            console.warn("asus-control falló:", exitCode, stderr);
-            showMessage("No se pudo comunicar con el backend de ASUS Control.", true);
+            console.warn("asus-control failed:", exitCode, stderr);
+            showMessage(texts.backendFailure(), true);
             return;
         }
         if (item.command === "profile") {
@@ -126,8 +131,12 @@ PlasmoidItem {
             return;
         }
         hw = response.state;
-        if (item.isAction)
-            showMessage(response.message, !response.ok);
+        if (item.action === null)
+            return;
+        if (response.ok)
+            showMessage(texts.success(item.action.setting, item.action.value), false);
+        else
+            showMessage(texts.error(response.error), true);
     }
 
     function showMessage(text, isError) {

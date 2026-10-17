@@ -9,10 +9,11 @@ PlasmaExtras.Representation {
     id: full
 
     required property var applet
+    required property Texts texts
 
     readonly property var hw: applet.hw
     readonly property bool controlsEnabled: applet.available && !applet.busy
-    readonly property string unavailable: "No disponible"
+    readonly property string unavailable: i18n("Not available")
 
     Layout.minimumWidth: Kirigami.Units.gridUnit * 18
     Layout.preferredWidth: Kirigami.Units.gridUnit * 20
@@ -29,9 +30,9 @@ PlasmaExtras.Representation {
             return unavailable;
         const parts = [];
         if (battery.acOnline !== null)
-            parts.push(battery.acOnline ? "Conectado a corriente" : "Con batería");
+            parts.push(texts.powerSource(battery.acOnline));
         if (battery.status)
-            parts.push(battery.status);
+            parts.push(texts.chargingStatus(battery.status));
         return parts.join(" · ") || unavailable;
     }
 
@@ -67,7 +68,7 @@ PlasmaExtras.Representation {
                     }
 
                     PlasmaComponents.Label {
-                        text: "Perfil de rendimiento"
+                        text: i18n("Performance profile")
                         opacity: 0.7
                     }
                 }
@@ -89,13 +90,14 @@ PlasmaExtras.Representation {
                         Layout.alignment: Qt.AlignRight
                         level: 2
                         text: full.hw && full.hw.battery && full.hw.battery.percent !== null
-                              ? full.hw.battery.percent + " %" : "—"
+                              ? i18n("%1 %", full.hw.battery.percent) : "—"
                     }
 
                     PlasmaComponents.Label {
                         Layout.alignment: Qt.AlignRight
                         text: full.hw && full.hw.battery && full.hw.battery.acOnline
-                              ? "Conectado" : "Batería"
+                              ? i18nc("power source, short", "Plugged in")
+                              : i18nc("power source, short", "Battery")
                         opacity: 0.7
                     }
                 }
@@ -104,7 +106,7 @@ PlasmaExtras.Representation {
             Kirigami.InlineMessage {
                 Layout.fillWidth: true
                 type: Kirigami.MessageType.Warning
-                text: "asusd no responde. Los controles están deshabilitados."
+                text: i18n("asusd is not responding. Controls are disabled.")
                 visible: full.hw !== null && !full.hw.asusdAvailable
             }
 
@@ -116,7 +118,7 @@ PlasmaExtras.Representation {
                 actions: [
                     Kirigami.Action {
                         icon.name: "dialog-close"
-                        text: "Cerrar"
+                        text: i18n("Close")
                         displayHint: Kirigami.DisplayHint.IconOnly
                         onTriggered: full.applet.clearMessage()
                     }
@@ -125,7 +127,7 @@ PlasmaExtras.Representation {
 
             // --- Controles ----------------------------------------------------------
             Section {
-                title: "Rendimiento"
+                title: i18nc("section title", "Performance")
                 note: full.applet.available ? "" : full.unavailable
 
                 SegmentedRow {
@@ -137,16 +139,16 @@ PlasmaExtras.Representation {
                         { value: "Balanced", label: "Balanced" },
                         { value: "Performance", label: "Performance" }
                     ]
-                    onActivated: value => full.applet.apply(["profile", value])
+                    onActivated: value => full.applet.apply("profile", value)
                 }
             }
 
             // Ventilación solo existe en Balanced; nunca se cambia el perfil para mostrarla.
             Section {
                 visible: full.hw !== null && full.hw.profile === "Balanced"
-                title: "Ventilación"
+                title: i18n("Fans")
                 note: !full.hw || !full.hw.fans ? full.unavailable
-                      : full.hw.fans.mode === null ? "Curvas personalizadas" : ""
+                      : full.hw.fans.mode === null ? i18n("Custom curves") : ""
 
                 SegmentedRow {
                     Layout.fillWidth: true
@@ -158,12 +160,12 @@ PlasmaExtras.Representation {
                         { value: "Ultra", label: "Ultra" },
                         { value: "Ultra Mega", label: "Ultra Mega" }
                     ]
-                    onActivated: value => full.applet.apply(["fan", value])
+                    onActivated: value => full.applet.apply("fan", value)
                 }
             }
 
             Section {
-                title: "Iluminación"
+                title: i18n("Lighting")
                 note: full.hw && full.hw.brightness ? "" : full.unavailable
 
                 SegmentedRow {
@@ -171,12 +173,12 @@ PlasmaExtras.Representation {
                     enabled: full.controlsEnabled && full.hw.brightness !== null
                     current: full.hw ? full.hw.brightness : null
                     options: [
-                        { value: "off", label: "Apagado" },
-                        { value: "low", label: "Bajo" },
-                        { value: "medium", label: "Medio" },
-                        { value: "high", label: "Alto" }
+                        { value: "off", label: full.texts.brightness("off") },
+                        { value: "low", label: full.texts.brightness("low") },
+                        { value: "medium", label: full.texts.brightness("medium") },
+                        { value: "high", label: full.texts.brightness("high") }
                     ]
-                    onActivated: value => full.applet.apply(["brightness", value])
+                    onActivated: value => full.applet.apply("brightness", value)
                 }
 
                 // Solo si asusd confirma que admite la zona Lightbar.
@@ -186,7 +188,7 @@ PlasmaExtras.Representation {
 
                     PlasmaComponents.Label {
                         Layout.fillWidth: true
-                        text: "Cinta LED"
+                        text: i18n("Lightbar")
                     }
 
                     PlasmaComponents.Switch {
@@ -195,14 +197,14 @@ PlasmaExtras.Representation {
                         onToggled: {
                             const wanted = checked;
                             checked = Qt.binding(() => full.hw && full.hw.lightbar ? full.hw.lightbar.on : false);
-                            full.applet.apply(["lightbar", wanted ? "on" : "off"]);
+                            full.applet.apply("lightbar", wanted ? "on" : "off");
                         }
                     }
                 }
             }
 
             Section {
-                title: "Batería"
+                title: i18n("Battery")
 
                 PlasmaComponents.ProgressBar {
                     Layout.fillWidth: true
@@ -224,7 +226,7 @@ PlasmaExtras.Representation {
                     spacing: Kirigami.Units.largeSpacing
 
                     PlasmaComponents.Label {
-                        text: "Límite de carga"
+                        text: i18n("Charge limit")
                     }
 
                     SegmentedRow {
@@ -232,17 +234,17 @@ PlasmaExtras.Representation {
                         enabled: full.controlsEnabled && full.hw.chargeLimit !== null
                         current: full.hw ? full.hw.chargeLimit : null
                         options: [
-                            { value: 60, label: "60 %" },
-                            { value: 80, label: "80 %" },
-                            { value: 100, label: "100 %" }
+                            { value: 60, label: i18n("%1 %", 60) },
+                            { value: 80, label: i18n("%1 %", 80) },
+                            { value: 100, label: i18n("%1 %", 100) }
                         ]
-                        onActivated: value => full.applet.apply(["charge-limit", value])
+                        onActivated: value => full.applet.apply("charge-limit", value)
                     }
                 }
             }
 
             Section {
-                title: "Sensores"
+                title: i18n("Sensors")
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -250,20 +252,20 @@ PlasmaExtras.Representation {
 
                     // «—» indica un sensor no disponible.
                     SensorTile {
-                        label: "°C CPU"
+                        label: i18nc("sensor tile caption", "°C CPU")
                         value: full.sensorValue(full.hw && full.hw.sensors.cpuTemp !== null
                                                 ? Math.round(full.hw.sensors.cpuTemp) : null)
                     }
                     SensorTile {
-                        label: "RPM CPU"
+                        label: i18nc("sensor tile caption", "RPM CPU")
                         value: full.sensorValue(full.hw ? full.hw.sensors.cpuFan : null)
                     }
                     SensorTile {
-                        label: "RPM GPU"
+                        label: i18nc("sensor tile caption", "RPM GPU")
                         value: full.sensorValue(full.hw ? full.hw.sensors.gpuFan : null)
                     }
                     SensorTile {
-                        label: "RPM central"
+                        label: i18nc("sensor tile caption, middle fan", "RPM mid")
                         value: full.sensorValue(full.hw ? full.hw.sensors.midFan : null)
                     }
                 }

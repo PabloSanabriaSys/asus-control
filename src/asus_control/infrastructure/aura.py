@@ -54,13 +54,13 @@ def parse_aura_object_path(tree: str) -> str:
         path = line.strip()
         if path.startswith(_AURA_PATH_PREFIX):
             return path
-    raise ParseError("asusd no expone ningún dispositivo Aura.")
+    raise ParseError("asusd exposes no Aura device.")
 
 
 def parse_power_zones(payload: str) -> frozenset[int]:
     data = _busctl_data(payload)
     if not isinstance(data, list) or not all(isinstance(zone, int) for zone in data):
-        raise ParseError("Formato inesperado de SupportedPowerZones.")
+        raise ParseError("Unexpected SupportedPowerZones format.")
     return frozenset(data)
 
 
@@ -68,7 +68,7 @@ def parse_lightbar_power(payload: str) -> LightbarState | None:
     """Estados de la cinta en ``LedPower``; ``None`` si no aparece."""
     data = _busctl_data(payload)
     if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], list):
-        raise ParseError("Formato inesperado de LedPower.")
+        raise ParseError("Unexpected LedPower format.")
     try:
         for zone, boot, awake, sleep, shutdown in data[0]:
             if zone == LIGHTBAR_POWER_ZONE:
@@ -76,7 +76,7 @@ def parse_lightbar_power(payload: str) -> LightbarState | None:
                     boot=bool(boot), awake=bool(awake), sleep=bool(sleep), shutdown=bool(shutdown)
                 )
     except (TypeError, ValueError) as exc:
-        raise ParseError("Formato inesperado de LedPower.") from exc
+        raise ParseError("Unexpected LedPower format.") from exc
     return None
 
 
@@ -84,4 +84,4 @@ def _busctl_data(payload: str) -> object:
     try:
         return json.loads(payload)["data"]
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
-        raise ParseError("Respuesta JSON de busctl no válida.") from exc
+        raise ParseError("Invalid busctl JSON response.") from exc

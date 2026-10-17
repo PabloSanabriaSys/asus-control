@@ -34,44 +34,28 @@ def test_profile_command_reads_only_the_profile() -> None:
 
     response = run(["profile"], make_service(platform))
 
-    assert response == {"ok": True, "message": None, "state": {"profile": "Performance"}}
+    assert response == {"ok": True, "error": None, "state": {"profile": "Performance"}}
     assert platform.calls == ["get_profile"]
 
 
 @pytest.mark.parametrize(
-    ("argv", "message", "applied"),
+    ("argv", "applied"),
     [
-        (
-            ["set", "profile", "Quiet"],
-            "Perfil Quiet activo.",
-            lambda p, _l: p.profile is Profile.QUIET,
-        ),
-        (
-            ["set", "brightness", "medium"],
-            "Iluminación: Medio.",
-            lambda p, _l: p.brightness is Brightness.MEDIUM,
-        ),
-        (
-            ["set", "charge-limit", "80"],
-            "Límite de carga: 80 %.",
-            lambda p, _l: p.charge_limit == 80,
-        ),
-        (["set", "lightbar", "on"], "Cinta LED encendida.", lambda _p, light: light.state.awake),
-        (
-            ["set", "fan", "Ultra Mega"],
-            "Ventilación Ultra Mega activa.",
-            lambda p, _l: all(c.enabled for c in p.curves.values()),
-        ),
+        (["set", "profile", "Quiet"], lambda p, _l: p.profile is Profile.QUIET),
+        (["set", "brightness", "medium"], lambda p, _l: p.brightness is Brightness.MEDIUM),
+        (["set", "charge-limit", "80"], lambda p, _l: p.charge_limit == 80),
+        (["set", "lightbar", "on"], lambda _p, light: light.state.awake),
+        (["set", "fan", "Ultra Mega"], lambda p, _l: all(c.enabled for c in p.curves.values())),
     ],
 )
-def test_set_commands_apply_and_report(
-    argv: list[str], message: str, applied: Callable[[FakePlatform, FakeLightbar], bool]
+def test_set_commands_apply_and_return_new_state(
+    argv: list[str], applied: Callable[[FakePlatform, FakeLightbar], bool]
 ) -> None:
     platform, lightbar = FakePlatform(), FakeLightbar()
 
     response = run(argv, make_service(platform, lightbar))
 
-    assert (response["ok"], response["message"]) == (True, message)
+    assert (response["ok"], response["error"]) == (True, None)
     assert applied(platform, lightbar)
 
 
@@ -81,7 +65,7 @@ def test_expected_error_is_reported_with_current_state() -> None:
     response = run(["set", "fan", "Extra"], make_service(platform))
 
     assert response["ok"] is False
-    assert "Balanced" in response["message"]
+    assert response["error"] == {"code": "fanRequiresBalanced"}
     assert response["state"]["profile"] == "Quiet"
     assert platform.profile is Profile.QUIET
 

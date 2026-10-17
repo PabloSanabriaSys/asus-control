@@ -31,16 +31,16 @@ class SubprocessRunner:
 
     def __call__(self, args: Sequence[str]) -> str:
         command = [self._executable, *args]
-        logger.debug("Ejecutando %s", command)
+        logger.debug("Running %s", command)
         try:
             completed = subprocess.run(
                 command, check=True, capture_output=True, text=True, timeout=self._timeout
             )
         except FileNotFoundError as exc:
-            raise CommandError(f"No se encontró {self._executable}.") from exc
+            raise CommandError(f"{self._executable} not found.") from exc
         except subprocess.TimeoutExpired as exc:
-            raise CommandError(f"{' '.join(command)} superó el tiempo límite.") from exc
+            raise CommandError(f"{' '.join(command)} timed out.") from exc
         except subprocess.CalledProcessError as exc:
             detail = (exc.stderr or exc.stdout or "").strip()
-            raise CommandError(f"{' '.join(command)} falló: {detail}") from exc
+            raise CommandError(f"{' '.join(command)} failed: {detail}") from exc
         return completed.stdout

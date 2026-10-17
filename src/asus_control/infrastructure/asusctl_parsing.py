@@ -26,11 +26,11 @@ BRIGHTNESS_ARGUMENTS = {
 def parse_active_profile(text: str) -> Profile:
     match = _ACTIVE_PROFILE.search(text)
     if match is None:
-        raise ParseError("No se encontró el perfil activo.")
+        raise ParseError("Active profile not found.")
     try:
         return Profile(match.group(1))
     except ValueError as exc:
-        raise ParseError(f"Perfil desconocido: {match.group(1)}") from exc
+        raise ParseError(f"Unknown profile: {match.group(1)}") from exc
 
 
 def parse_fan_curves(text: str) -> dict[Fan, FanCurve]:
@@ -44,25 +44,25 @@ def parse_fan_curves(text: str) -> dict[Fan, FanCurve]:
         for fan, pwm, temps, enabled in _FAN_CURVE.findall(text)
     }
     if set(curves) != set(Fan):
-        raise ParseError("No se pudo leer el estado de los tres ventiladores.")
+        raise ParseError("Could not read the three fan curves.")
     return curves
 
 
 def parse_brightness(text: str) -> Brightness:
     match = _BRIGHTNESS.search(text)
     if match is None:
-        raise ParseError("No se encontró el brillo del teclado.")
+        raise ParseError("Keyboard brightness not found.")
     reported = match.group(1).lower()
     for level, argument in BRIGHTNESS_ARGUMENTS.items():
         if argument == reported:
             return level
-    raise ParseError(f"Brillo desconocido: {match.group(1)}")
+    raise ParseError(f"Unknown brightness: {match.group(1)}")
 
 
 def parse_charge_limit(text: str) -> int:
     match = _CHARGE_LIMIT.search(text)
     if match is None:
-        raise ParseError("No se encontró el límite de carga.")
+        raise ParseError("Charge limit not found.")
     return int(match.group(1))
 
 
@@ -76,4 +76,4 @@ def _int_tuple(values: str) -> tuple[int, ...]:
     try:
         return tuple(int(value) for value in values.split(","))
     except ValueError as exc:
-        raise ParseError(f"Valores no numéricos: {values}") from exc
+        raise ParseError(f"Non-numeric values: {values}") from exc

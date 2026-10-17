@@ -1,15 +1,28 @@
 from __future__ import annotations
 
+import pytest
+
+from asus_control.domain.errors import (
+    AsusControlError,
+    FanModeError,
+    FanModeRequiresBalancedError,
+    HardwareAccessError,
+    LightbarUnsupportedError,
+    LockBusyError,
+    VerificationError,
+)
 from asus_control.domain.models import (
     BatteryStatus,
     Brightness,
+    FanMode,
     FanStatus,
     HardwareState,
     LightbarState,
     Profile,
     SensorReadings,
+    Setting,
 )
-from asus_control.presentation.serialization import state_to_json
+from asus_control.presentation.serialization import error_to_json, state_to_json
 
 
 def test_serializes_complete_state() -> None:
@@ -30,7 +43,7 @@ def test_serializes_complete_state() -> None:
         "brightness": "medium",
         "lightbar": {"on": False},
         "chargeLimit": 60,
-        "battery": {"percent": 66, "acOnline": False, "status": "Descargando"},
+        "battery": {"percent": 66, "acOnline": False, "status": "Discharging"},
         "sensors": {"cpuTemp": 59.0, "cpuFan": 2000, "gpuFan": None, "midFan": None},
     }
 
@@ -42,7 +55,25 @@ def test_unavailable_state_serializes_to_nulls() -> None:
     assert all(data[key] is None for key in ("profile", "fans", "lightbar", "battery"))
 
 
-def test_unknown_charging_state_is_kept_verbatim() -> None:
-    battery = BatteryStatus(percent=50, ac_online=None, charging_state="Unknown")
-
-    assert state_to_json(HardwareState(battery=battery))["battery"]["status"] == "Unknown"
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (FanModeRequiresBalancedError(), {"code": "fanRequiresBalanced"}),
+        (
+            FanModeError(FanMode.ULTRA, restored=False),
+            {"code": "fanModeFailed", "mode": "Ultra", "restored": False},
+        ),
+        (LockBusyError(), {"code": "fanChangeInProgress"}),
+        (LightbarUnsupportedError(), {"code": "lightbarUnsupported"}),
+        (
+            VerificationError(Setting.CHARGE_LIMIT),
+            {"code": "notConfirmed", "setting": "charge-limit"},
+        ),
+        (
+            HardwareAccessError("asusctl timed out"),
+            {"code": "hardwareAccess", "detail": "asusctl timed out"},
+        ),
+    ],
+)
+def test_errors_become_stable_codes(error: AsusControlError, expected: dict[str, object]) -> None:
+    assert error_to_json(error) == expected

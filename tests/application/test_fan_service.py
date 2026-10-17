@@ -6,7 +6,7 @@ from contextlib import contextmanager
 import pytest
 
 from asus_control.application.fan_service import FanService
-from asus_control.domain.errors import FanModeError, LockBusyError
+from asus_control.domain.errors import FanModeError, FanModeRequiresBalancedError, LockBusyError
 from asus_control.domain.models import FanMode, Profile
 from tests.fakes import FakePlatform, no_lock
 
@@ -37,10 +37,9 @@ def test_normal_only_disables_custom_curves() -> None:
 def test_refuses_outside_balanced_without_changing_profile(profile: Profile) -> None:
     platform = FakePlatform(profile=profile)
 
-    with pytest.raises(FanModeError) as error:
+    with pytest.raises(FanModeRequiresBalancedError):
         make_service(platform).apply(FanMode.ULTRA)
 
-    assert error.value.restored is None
     assert platform.profile is profile
     assert platform.calls == ["get_profile"]
 
@@ -51,8 +50,7 @@ def test_partial_failure_restores_automatic_control() -> None:
     with pytest.raises(FanModeError) as error:
         make_service(platform).apply(FanMode.EXTRA)
 
-    assert error.value.restored is True
-    assert "Se restauró" in str(error.value)
+    assert (error.value.mode, error.value.restored) == (FanMode.EXTRA, True)
     assert not any(curve.enabled for curve in platform.curves.values())
 
 
@@ -63,7 +61,6 @@ def test_reports_when_restoration_also_fails() -> None:
         make_service(platform).apply(FanMode.ULTRA)
 
     assert error.value.restored is False
-    assert "ni restaurar" in str(error.value)
 
 
 def test_unconfirmed_write_is_reported_and_recovered() -> None:
@@ -81,7 +78,7 @@ def test_busy_lock_prevents_any_access() -> None:
 
     @contextmanager
     def busy() -> Iterator[None]:
-        raise LockBusyError("ocupado")
+        raise LockBusyError
         yield
 
     with pytest.raises(LockBusyError):

@@ -22,6 +22,7 @@ check_requirements() {
     [[ $EUID -ne 0 ]] || die "instala como usuario normal, sin sudo."
     "$PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 11))' || die "se necesita Python 3.11 o superior."
     command -v kpackagetool6 >/dev/null || die "falta kpackagetool6 (Plasma 6)."
+    command -v msgfmt >/dev/null || die "falta msgfmt (paquete gettext) para compilar las traducciones."
     command -v asusctl >/dev/null || echo "Aviso: asusctl no está instalado; los controles aparecerán como no disponibles."
 }
 
@@ -47,12 +48,29 @@ LAUNCHER
     "$LAUNCHER" profile >/dev/null || echo "Aviso: el backend no pudo leer el perfil (¿asusd activo?)."
 }
 
+# Copia el paquete a un directorio temporal y compila las traducciones dentro de él
+# (contents/locale/<idioma>/LC_MESSAGES/plasma_applet_<id>.mo); el repositorio solo guarda los .po.
+build_applet() {
+    local staging=$1
+    cp -r -- "$REPO/plasmoid/." "$staging/"
+    rm -rf -- "$staging/translate" "$staging/$APP_ID.svg"
+    local po lang
+    for po in "$REPO"/plasmoid/translate/*.po; do
+        lang="$(basename "$po" .po)"
+        mkdir -p -- "$staging/contents/locale/$lang/LC_MESSAGES"
+        msgfmt --check -o "$staging/contents/locale/$lang/LC_MESSAGES/plasma_applet_$APPLET_ID.mo" "$po"
+    done
+}
+
 install_applet() {
     install -D -m 0644 -- "$REPO/plasmoid/$APP_ID.svg" "$ICON_FILE"
+    STAGING="$(mktemp -d)"
+    trap 'rm -rf -- "$STAGING"' EXIT
+    build_applet "$STAGING"
     if kpackagetool6 -t Plasma/Applet --show "$APPLET_ID" >/dev/null 2>&1; then
-        kpackagetool6 -t Plasma/Applet --upgrade "$REPO/plasmoid" >/dev/null
+        kpackagetool6 -t Plasma/Applet --upgrade "$STAGING" >/dev/null
     else
-        kpackagetool6 -t Plasma/Applet --install "$REPO/plasmoid" >/dev/null
+        kpackagetool6 -t Plasma/Applet --install "$STAGING" >/dev/null
     fi
 }
 
@@ -63,13 +81,16 @@ install_launcher_entry() {
 [Desktop Entry]
 Type=Application
 Name=ASUS Control
-GenericName=Control de hardware ASUS
-Comment=Perfiles, ventilación, iluminación y batería del ROG Strix G16
+GenericName=ASUS hardware control
+GenericName[es]=Control de hardware ASUS
+Comment=Profiles, fans, lighting and battery for the ROG Strix G16
+Comment[es]=Perfiles, ventilación, iluminación y batería del ROG Strix G16
 Exec=plasmawindowed $APPLET_ID
 Icon=$APP_ID
 Terminal=false
 Categories=System;Settings;HardwareSettings;
-Keywords=asus;rog;ventilador;batería;teclado;
+Keywords=asus;rog;fan;battery;keyboard;
+Keywords[es]=asus;rog;ventilador;batería;teclado;
 StartupNotify=false
 DESKTOP
     command -v update-desktop-database >/dev/null && update-desktop-database -q "$(dirname "$DESKTOP_FILE")" || true

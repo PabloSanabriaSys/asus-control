@@ -25,7 +25,7 @@ def fan_lock(path: Path) -> Iterator[None]:
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
-            raise LockBusyError("Hay otro cambio de ventilación en curso.") from exc
+            raise LockBusyError from exc
         try:
             yield
         finally:

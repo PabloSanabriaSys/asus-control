@@ -7,12 +7,13 @@
             }
         ],
         "Category": "System Information",
-        "Description": "Perfiles, ventilación, iluminación y batería del ROG Strix G16",
+        "Description": "Profiles, fans, lighting and battery for the ROG Strix G16",
+        "Description[es]": "Perfiles, ventilación, iluminación y batería del ROG Strix G16",
         "EnabledByDefault": true,
         "Icon": "asus-control",
         "Id": "com.pablosanabria.asuscontrol",
         "Name": "ASUS Control",
-        "Version": "0.2.0"
+        "Version": "0.3.0"
     },
     "X-Plasma-API-Minimum-Version": "6.0",
     "X-Plasma-NotificationArea": "true",
