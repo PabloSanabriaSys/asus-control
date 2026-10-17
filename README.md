@@ -1,6 +1,33 @@
 # ASUS Control
 
-Applet (plasmoide) para la bandeja de KDE Plasma 6 que controla un portátil ASUS ROG a través de `asusd`. Está hecho y probado para el **ROG Strix G16 G615JH** con asusd 6.5.0 en Fedora (Wayland). Se muestra en inglés o en español según el idioma del sistema.
+<div align="center">
+    <img src="plasmoid/icons/asus-control.svg" alt="Logo de ASUS Control" width="128">
+</div>
+
+<div align="center">
+    <img src="https://img.shields.io/badge/KDE_Plasma_6-1D99F3?style=for-the-badge&logo=kde&logoColor=white" alt="KDE Plasma 6">
+    <img src="https://img.shields.io/badge/QML-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="QML">
+    <img src="https://img.shields.io/badge/Python_3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+">
+    <img src="https://img.shields.io/badge/D--Bus-4A4A55?style=for-the-badge&logo=freedesktopdotorg&logoColor=white" alt="D-Bus">
+    <img src="https://img.shields.io/badge/Wayland-FFBC00?style=for-the-badge&logo=wayland&logoColor=black" alt="Wayland">
+    <img src="https://img.shields.io/badge/License-Apache_2.0-D22128?style=for-the-badge&logo=apache&logoColor=white" alt="Apache 2.0">
+</div>
+
+## Descripción
+
+Applet (plasmoide) para la bandeja de KDE Plasma 6 que controla un portátil ASUS ROG a través de `asusd`: perfil de rendimiento, modos de ventilación, iluminación del teclado y la cinta LED, límite de carga y sensores, todo desde un popup anclado a la barra.
+
+Está hecho y probado para el **ROG Strix G16 G615JH** con asusd 6.5.0 en Fedora (Wayland). La interfaz es QML y habla con asusd por D-Bus; la ventilación y los sensores pasan por un pequeño backend en Python sin dependencias externas. Se muestra en inglés o en español según el idioma del sistema.
+
+## Capturas
+
+<div align="center">
+    <img src="docs/media/applet-en.png" alt="ASUS Control en inglés" width="48%">
+    <img src="docs/media/applet-es.png" alt="ASUS Control en español" width="48%">
+</div>
+<div align="center">
+    <sub>Popup del applet con el sistema en inglés (izquierda) y en español (derecha).</sub>
+</div>
 
 ## Funciones
 
