@@ -1,12 +1,12 @@
 # ASUS Control
 
-Applet (plasmoide) para la bandeja de KDE Plasma (Wayland) que controla un ASUS ROG Strix G16 G615JH con asusctl 6.5.0. Se muestra en inglés o en español según el idioma del sistema.
+Applet (plasmoide) para la bandeja de KDE Plasma (Wayland) que controla un ASUS ROG Strix G16 G615JH con asusd 6.5.0 (paquete asusctl). Se muestra en inglés o en español según el idioma del sistema.
 
 ## Funciones
 
 - **Rendimiento:** Quiet, Balanced y Performance. Siempre muestra el perfil real.
 - **Ventilación:** Normal, Extra, Ultra y Ultra Mega, con las mismas curvas que `~/.local/bin/alternar-ventilacion`. La sección solo aparece en Balanced y nunca cambia el perfil por su cuenta.
-- **Iluminación:** slider de brillo con los cuatro niveles del hardware (Apagado, Bajo, Medio y Alto). asusctl expone un único brillo compartido por el teclado y la iluminación.
+- **Iluminación:** slider de brillo con los cuatro niveles del hardware (Apagado, Bajo, Medio y Alto). asusd expone un único brillo, compartido por el teclado y la cinta LED.
 - **Cinta LED:** interruptor de encendido; no tiene brillo propio. Solo aparece si asusd confirma que admite la zona Lightbar (ver [docs/README.md](docs/README.md#cinta-led)).
 - **Batería:** porcentaje con el icono de batería del tema (con enchufe si está conectada), estado de carga y límite de carga de 60, 80 o 100 %.
 - **Sensores:** temperatura del paquete CPU y RPM de los ventiladores de CPU, GPU y central, en la parte superior del popup.
