@@ -47,7 +47,7 @@ Instala para el usuario actual, sin sudo ni pip:
 | `~/.local/bin/asus-control` | Lanzador del backend (`asus-control state`, `asus-control set …`) |
 | `~/.local/share/plasma/plasmoids/com.pablosanabria.asuscontrol/` | Applet de la bandeja |
 | `~/.local/share/applications/asus-control.desktop` | Entrada en el lanzador; abre el applet en una ventana (`plasmawindowed`) |
-| `~/.local/share/icons/hicolor/scalable/apps/asus-control{,-symbolic}.svg` | Iconos: a color para el lanzador; monocromo para la bandeja, coloreado según el tema |
+| `~/.local/share/icons/hicolor/scalable/apps/asus-control*.svg` | Iconos: a color para el lanzador; monocromos (`-symbolic`) para la bandeja y el popup, coloreados según el tema |
 
 Para actualizar, vuelve a ejecutar el script. También elimina la app de bandeja Qt de versiones anteriores y su entrada de autostart.
 

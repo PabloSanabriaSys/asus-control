@@ -217,9 +217,10 @@ PlasmaExtras.Representation {
                     spacing: Kirigami.Units.largeSpacing
 
                     Kirigami.Icon {
-                        source: "input-keyboard-brightness"
-                        implicitWidth: Kirigami.Units.iconSizes.medium
-                        implicitHeight: Kirigami.Units.iconSizes.medium
+                        // Iconos propios (plasmoid/icons): mismo estilo con cualquier tema de iconos.
+                        source: "asus-control-keyboard-symbolic"
+                        implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                        implicitHeight: Kirigami.Units.iconSizes.smallMedium
                     }
 
                     ColumnLayout {
@@ -258,11 +259,12 @@ PlasmaExtras.Representation {
                     visible: full.live.lightbar !== null
                     spacing: Kirigami.Units.largeSpacing
 
+                    // Atenuado cuando la cinta está apagada.
                     Kirigami.Icon {
-                        source: full.applet.shown("lightbar") === "on"
-                                ? "flashlight-on-symbolic" : "flashlight-off-symbolic"
-                        implicitWidth: Kirigami.Units.iconSizes.medium
-                        implicitHeight: Kirigami.Units.iconSizes.medium
+                        source: "asus-control-lightbar-symbolic"
+                        opacity: full.applet.shown("lightbar") === "on" ? 1 : 0.5
+                        implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                        implicitHeight: Kirigami.Units.iconSizes.smallMedium
                     }
 
                     ColumnLayout {

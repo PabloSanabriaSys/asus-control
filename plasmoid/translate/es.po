@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma_applet_com.pablosanabria.asuscontrol\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-17 14:47-0400\n"
+"POT-Creation-Date: 2026-10-17 14:55-0400\n"
 "PO-Revision-Date: 2026-10-17 11:55-0400\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: Spanish\n"
@@ -26,9 +26,9 @@ msgid "Performance profile"
 msgstr "Perfil de rendimiento"
 
 #: contents/ui/FullRepresentation.qml:111
-#: contents/ui/FullRepresentation.qml:306
-#: contents/ui/FullRepresentation.qml:307
-#: contents/ui/FullRepresentation.qml:308 contents/ui/main.qml:63
+#: contents/ui/FullRepresentation.qml:308
+#: contents/ui/FullRepresentation.qml:309
+#: contents/ui/FullRepresentation.qml:310 contents/ui/main.qml:63
 msgid "%1 %"
 msgstr "%1 %"
 
@@ -77,19 +77,19 @@ msgstr "Curvas personalizadas"
 msgid "Lighting"
 msgstr "Iluminación"
 
-#: contents/ui/FullRepresentation.qml:234
+#: contents/ui/FullRepresentation.qml:235
 msgid "Keyboard"
 msgstr "Teclado"
 
-#: contents/ui/FullRepresentation.qml:274
+#: contents/ui/FullRepresentation.qml:276
 msgid "Lightbar"
 msgstr "Cinta LED"
 
-#: contents/ui/FullRepresentation.qml:279
+#: contents/ui/FullRepresentation.qml:281
 msgid "Same brightness as the keyboard"
 msgstr "Mismo brillo que el teclado"
 
-#: contents/ui/FullRepresentation.qml:299
+#: contents/ui/FullRepresentation.qml:301
 msgid "Charge limit"
 msgstr "Límite de carga"
 

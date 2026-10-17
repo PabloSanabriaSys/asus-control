@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
+  <!-- Cinta LED: frente de un portátil con la tira luminosa en el borde inferior. -->
+  <style type="text/css" id="current-color-scheme">.ColorScheme-Text { color: #fcfcfc; }</style>
+  <g class="ColorScheme-Text" fill="currentColor">
+    <path d="M5 2h12a1.5 1.5 0 0 1 1.5 1.5V11h-15V3.5A1.5 1.5 0 0 1 5 2zm0 1a.5.5 0 0 0-.5.5V10h13V3.5A.5.5 0 0 0 17 3z"/>
+    <path d="M1 11.5h20v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2z"/>
+    <rect x="2.5" y="15.8" width="17" height="1.7" rx="0.85"/>
+    <rect x="3.5" y="19" width="1" height="2" rx="0.5"/>
+    <rect x="7.25" y="19" width="1" height="2" rx="0.5"/>
+    <rect x="10.5" y="19" width="1" height="2" rx="0.5"/>
+    <rect x="13.75" y="19" width="1" height="2" rx="0.5"/>
+    <rect x="17.5" y="19" width="1" height="2" rx="0.5"/>
+  </g>
+</svg>
