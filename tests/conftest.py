@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import os
+
+# Las pruebas de interfaz no necesitan una sesión gráfica.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import pytest
+from PySide6.QtWidgets import QApplication
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -29,3 +35,9 @@ class FakeRunner:
 @pytest.fixture
 def fake_runner() -> FakeRunner:
     return FakeRunner()
+
+
+@pytest.fixture(scope="session")
+def qt_app() -> QApplication:
+    app = QApplication.instance()
+    return app if isinstance(app, QApplication) else QApplication([])

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QCoreApplication
+from PySide6.QtWidgets import QApplication
 
 from asus_control.commands import AsusCtl, AuraBus
 from asus_control.controller import HardwareController
@@ -22,11 +23,6 @@ from tests.fake_asusd import FakeAsusd
 @contextmanager
 def no_lock() -> Iterator[None]:
     yield
-
-
-@pytest.fixture(scope="module")
-def qt_app() -> QCoreApplication:
-    return QCoreApplication.instance() or QCoreApplication([])
 
 
 def wait_until(condition: Callable[[], bool], timeout: float = 3.0) -> None:
@@ -54,7 +50,7 @@ def asusd() -> FakeAsusd:
 
 
 @pytest.fixture
-def controller(qt_app: QCoreApplication, asusd: FakeAsusd) -> Iterator[HardwareController]:
+def controller(qt_app: QApplication, asusd: FakeAsusd) -> Iterator[HardwareController]:
     client = AsusCtl(asusd)
     no_aura = FakeRunner(lambda _args: "")
     service = HardwareService(
