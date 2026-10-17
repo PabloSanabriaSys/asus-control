@@ -2,17 +2,28 @@
 
 ## Arquitectura
 
-Tres capas. El dominio no depende de Qt y la interfaz nunca ejecuta asusctl directamente.
+```
+Applet QML (bandeja de Plasma)  ──sh──▶  asus-control <orden>  ──▶  HardwareService
+  plasmoid/contents/ui/                    cli.py → JSON              asusctl · busctl · sysfs
+```
 
-| Capa | Módulos | Responsabilidad |
+En Wayland solo Plasma puede anclar un popup al icono de la bandeja. Por eso la interfaz es un plasmoide QML y toda la lógica está en un backend Python sin dependencias externas.
+
+| Capa | Archivos | Responsabilidad |
 |---|---|---|
 | Dominio | `models.py`, `parsing.py`, `fans.py`, `errors.py` | Tipos inmutables, interpretación de salidas, modos de ventilación con verificación y recuperación |
-| Adaptadores | `commands.py`, `sensors.py`, `fan_lock.py`, `hardware.py`, `autostart.py` | asusctl y busctl (argumentos separados, sin shell, tiempo límite de 10 s), sysfs, bloqueo compartido, entrada XDG |
-| Interfaz | `tasks.py`, `controller.py`, `panel.py`, `tray.py`, `single_instance.py`, `app.py` | Ejecución en segundo plano, señales Qt, panel, bandeja e instancia única |
+| Adaptadores | `commands.py`, `sensors.py`, `fan_lock.py`, `hardware.py` | asusctl y busctl (argumentos separados, sin shell, tiempo límite de 10 s), sysfs, bloqueo compartido |
+| Backend | `cli.py`, `serialization.py` | Órdenes `state`, `profile` y `set …`; cada una imprime una línea JSON `{ok, message, state}` |
+| Interfaz | `plasmoid/contents/ui/*.qml` | Popup de la bandeja, cola de órdenes y temporizadores |
 
-- **Ejecución sin bloqueo:** `TaskRunner` usa un único hilo de trabajo. Las órdenes nunca se solapan y el resultado vuelve al hilo de la interfaz mediante una señal Qt.
+- **CLI:** `argparse` solo acepta valores cerrados, derivados de los enums. Un error esperado (`AsusControlError`, por ejemplo una verificación fallida o la ventilación fuera de Balanced) devuelve `ok: false` con el mensaje para el usuario y el estado actual. Un error no previsto devuelve código 1 con la traza en stderr; el applet lo muestra como «No se pudo comunicar con el backend».
+- **Applet:**
+  - `main.qml` ejecuta el backend con el motor `executable` de Plasma5Support.
+  - Una cola garantiza que solo corra una orden a la vez y que no se dupliquen lecturas pendientes.
+  - Los valores se citan para `sh`, aunque solo provienen de listas fijas.
+- **Componentes:** `FullRepresentation.qml` es el popup; `SegmentedRow.qml`, `Section.qml` y `SensorTile.qml` son reutilizables.
+- **Confirmación de cambios:** cada acción vuelve a leer el valor. Si no coincide, se lanza `VerificationError`. Los botones y el interruptor siguen siempre al estado leído: tras un clic se vuelven a enlazar con él, así que nunca se marcan de forma optimista.
 - **Inyección de dependencias:** `CommandRunner` es un `Protocol`, así que las pruebas sustituyen asusctl por una simulación con estado (`tests/fake_asusd.py`). `SysfsSensors` recibe la raíz de sysfs como parámetro.
-- **Confirmación de cambios:** cada acción vuelve a leer el valor. Si no coincide, se lanza `VerificationError` y el panel muestra el error. Los botones solo se marcan con estados leídos, nunca de forma optimista.
 
 ### Fuentes de datos
 
@@ -40,7 +51,7 @@ Los dispositivos hwmon y power_supply se buscan por `name`, `*_label` y `type`, 
   5. Volver a leer y comparar.
 - **Normal:** desactiva las curvas personalizadas.
 - **Recuperación:** si falla cualquier paso posterior a la revalidación, la app desactiva las curvas, comprueba que se haya recuperado el control automático e informa si se logró o no.
-- **Curvas desconocidas:** si las curvas activas no coinciden con ningún modo, el panel indica «Curvas personalizadas activas» y no marca ningún botón.
+- **Curvas desconocidas:** si las curvas activas no coinciden con ningún modo, el applet indica «Curvas personalizadas» y no marca ningún botón.
 - **Acceso «Alternar ventilación»:** el script, su `.desktop` y su atajo de teclado siguen funcionando sin cambios.
 
 ## Cinta LED
@@ -76,28 +87,28 @@ La aplicación nunca modifica `/etc`. Sin la corrección, la sección «Cinta LE
 .venv/bin/pytest
 ```
 
-Las pruebas de interfaz usan `QT_QPA_PLATFORM=offscreen`. Cubren:
+Cubren:
 - Parsers con salidas reales capturadas en `tests/fixtures/`.
 - Argumentos exactos de cada orden.
 - Simulación con estado de asusd: los cuatro modos, el rechazo fuera de Balanced, un fallo parcial con recuperación, una recuperación fallida, una escritura no confirmada y el bloqueo entre procesos.
 - Sensores sobre un sysfs falso con números hwmon distintos.
-- Controlador: acciones, errores, acciones ignoradas mientras otra está en curso y cambio externo de perfil.
-- Panel: ventilación solo en Balanced, «No disponible», sin marcado optimista y cierre que solo oculta.
-- Autostart.
+- Lecturas que nunca escriben en el hardware.
+- Serialización JSON, cada orden `set` de la CLI, errores esperados como `ok: false`, rechazo de argumentos no válidos y código de salida ante errores no previstos.
+
+El QML no tiene pruebas automáticas (no hay `qmltestrunner` ni `plasmoidviewer` instalados). Se verifica en Plasma con `plasmawindowed` y revisando `journalctl --user -u plasma-plasmashell`.
 
 ### Verificación manual realizada en el equipo
 
 - Cambio de Quiet → Performance → Balanced, confirmado con `asusctl profile get`. Los perfiles de corriente y batería (Balanced/Quiet) no cambian.
 - En Quiet y Performance, la ventilación se rechaza sin cambiar el perfil.
-- Extra → Ultra → Ultra Mega → Normal aplicados y detectados.
+- Extra → Ultra → Ultra Mega → Normal aplicados y detectados, también con la orden citada tal como la ejecuta el applet (`sh -c "… set 'fan' 'Ultra Mega'"`).
 - Brillo Apagado/Bajo/Medio/Alto y límite 80/100/60 % aplicados y confirmados.
-- Con el bloqueo tomado por la app, `alternar-ventilacion` sale sin hacer cambios.
-- El ciclo completo de `alternar-ventilacion` es reconocido por la app en cada paso.
-- Icono registrado en la bandeja de Plasma. Una segunda instancia muestra el panel de la primera.
-- Instalación con `scripts/install.sh`; el autostart se crea en el primer inicio.
+- Con el bloqueo tomado, `alternar-ventilacion` sale sin hacer cambios. El ciclo completo del script es reconocido en cada paso.
+- Applet instalado con `scripts/install.sh`: Plasma lo añade automáticamente a la bandeja. `plasmawindowed` muestra el estado real y el journal no registra errores QML del applet.
 
 ## Limitaciones conocidas
 
-- **Posición del panel:** en Wayland las aplicaciones no pueden fijar la posición de sus ventanas ni conocer la del icono de la bandeja. El panel es una ventana normal que coloca KWin. Puede fijarse con una regla de ventana de KWin (clase `asus-control`).
 - **Brillo compartido:** asusctl 6.5.0 solo expone un brillo para teclado e iluminación, así que no hay controles separados para cada uno.
 - **Cinta LED:** queda oculta mientras no se aplique `lightbar-fix.sh`. El apagado (`aura power lightbar` sin `--awake`) solo se podrá verificar en el equipo después de aplicar la corrección.
+- **Costo de cada lectura:** cada lectura arranca un proceso Python (~0,5 s, en segundo plano). Con el popup abierto se lee cada 2 s; cerrado, solo el perfil cada 10 s.
+- **Tamaño del popup:** el popup de la bandeja tiene el tamaño que define la bandeja de Plasma. Si el contenido no cabe, se desplaza verticalmente.
