@@ -1,0 +1,15 @@
+// Soporte Aura local para ROG Strix G16 G615JH (teclado 0b05:19b6).
+// asusd 6.5.0 no incluye este modelo en /usr/share/asusd/aura_support.ron y usa una
+// configuración genérica solo con Keyboard. Esta entrada añade la zona Lightbar.
+// Se instala con scripts/lightbar-fix.sh; asusd la combina con el archivo del sistema.
+([
+    (
+        device_name: "G615JH",
+        product_id: "19b6",
+        layout_name: "g634j-per-key",
+        basic_modes: [Static],
+        basic_zones: [],
+        advanced_type: r#None,
+        power_zones: [Keyboard, Lightbar],
+    ),
+])
