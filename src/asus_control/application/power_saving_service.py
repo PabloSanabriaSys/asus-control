@@ -84,6 +84,17 @@ class PowerSavingService:
                 )
             else:
                 if enabled:
+                    if not session.enabled:
+                        # Completed restores have been released for manual use. Capture
+                        # their current values again, retaining unresolved GPU originals.
+                        capture = self._device.capture()
+                        retained = {s.key for s in session.settings}
+                        session = replace(
+                            session,
+                            settings=session.settings
+                            + tuple(s for s in capture.settings if s.key not in retained),
+                            unavailable=capture.unavailable,
+                        )
                     session = self._extend_session(session)
                 session = replace(
                     session,
@@ -109,7 +120,12 @@ class PowerSavingService:
                 self._apply(session)
 
     def require_manual_control(self) -> None:
-        if self._store.load() is not None:
+        session = self._store.load()
+        if session is not None and not session.enabled:
+            # Also migrate older snapshots that still retain restored controls.
+            self._apply(session)
+            session = self._store.load()
+        if session is not None and (session.enabled or not self._only_gpu_restore(session)):
             raise HardwareAccessError(
                 "Turn off battery saving and finish restoring settings first."
             )
@@ -176,6 +192,7 @@ class PowerSavingService:
             if s.key in pending
         ):
             self._clear_deferred_errors(session, had_errors)
+            self._release_restored_controls(session)
             return
         errors: list[str] = []
         for setting in session.settings:
@@ -207,6 +224,19 @@ class PowerSavingService:
             self._store.save(None)
         elif errors:
             raise HardwareAccessError("; ".join(errors))
+        else:
+            self._release_restored_controls(session)
+
+    @staticmethod
+    def _only_gpu_restore(session: PowerSavingSession) -> bool:
+        return not session.enabled and session.pending == ("gpu.configuration",)
+
+    def _release_restored_controls(self, session: PowerSavingSession) -> None:
+        """Keep only the deferred GPU backup; stop auditing restored manual values."""
+        if not session.errors and self._only_gpu_restore(session):
+            retained = tuple(s for s in session.settings if s.key in session.pending)
+            if retained != session.settings:
+                self._store.save(replace(session, settings=retained))
 
     def _clear_deferred_errors(self, session: PowerSavingSession, had_errors: bool) -> None:
         if had_errors:

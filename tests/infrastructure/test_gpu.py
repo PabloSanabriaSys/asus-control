@@ -160,3 +160,77 @@ def test_partial_queue_failure_can_be_cancelled_without_reboot(tmp_path: Path) -
     assert fake.values == {"gpu_mux_mode": 0, "dgpu_disable": 0}
     assert set(fake.queue.values()) == {-1}
     assert saving.status() is None
+
+
+class ManualGpuDevice(GpuDevice):
+    def __init__(self, fake: DeferredGpuBus) -> None:
+        super().__init__(fake)
+        self.profile = "Balanced"
+
+    def capture(self) -> PowerSavingCapture:
+        try:
+            gpu = super().capture().settings
+        except HardwareAccessError:
+            gpu = ()  # The production capture reports an existing GPU queue as optional.
+        return PowerSavingCapture((*gpu, SavedSetting("profile", self.profile, "Quiet")))
+
+    def read(self, key: str) -> str:
+        return self.profile if key == "profile" else super().read(key)
+
+    def write(self, key: str, value: str) -> None:
+        if key == "profile":
+            self.profile = value
+        else:
+            super().write(key, value)
+
+    def restart_required(self, key: str, value: str) -> bool:
+        return key != "profile" and super().restart_required(key, value)
+
+
+def test_manual_changes_survive_gpu_restoration_and_restart(tmp_path: Path) -> None:
+    fake = DeferredGpuBus()
+    device = ManualGpuDevice(fake)
+    store = FilePowerSavingStore(tmp_path / "state")
+    saving = PowerSavingService(device, store, no_lock)
+    saving.set_enabled(True)
+    with pytest.raises(HardwareAccessError), saving.manual_control():
+        pytest.fail("Active saving must keep manual controls locked")
+    fake.reboot()
+    saving.reconcile()
+    saving.set_enabled(False)
+    assert device.profile == "Balanced"
+    assert [s.key for s in saving.status().settings] == ["gpu.configuration"]
+    with saving.manual_control():
+        device.profile = "Performance"
+    saving.reconcile()
+    assert device.profile == "Performance"
+    assert [c.key for c in saving.inspect().checks] == ["gpu.configuration"]
+    fake.reboot()
+    PowerSavingService(device, store, no_lock).reconcile()
+    assert saving.status() is None
+    assert device.profile == "Performance"
+
+
+def test_reenable_during_gpu_restore_captures_new_manual_originals(tmp_path: Path) -> None:
+    fake = DeferredGpuBus()
+    device = ManualGpuDevice(fake)
+    saving = PowerSavingService(device, FilePowerSavingStore(tmp_path / "state"), no_lock)
+    saving.set_enabled(True)
+    fake.reboot()
+    saving.reconcile()
+    saving.set_enabled(False)
+    gpu_original = saving.status().settings[0].original
+    with saving.manual_control():
+        device.profile = "Performance"
+    saving.set_enabled(True)
+    assert device.profile == "Quiet"
+    assert next(s.original for s in saving.status().settings if s.key == "profile") == "Performance"
+    assert (
+        next(s.original for s in saving.status().settings if s.key == "gpu.configuration")
+        == gpu_original
+    )
+    saving.set_enabled(False)
+    assert device.profile == "Performance"
+    fake.reboot()
+    saving.reconcile()
+    assert saving.status() is None

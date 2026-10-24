@@ -1,5 +1,5 @@
 /* Live asusd readings plus serialized, verified backend writes.
- * Battery saving owns its managed controls until restoration finishes.
+ * A deferred GPU restoration does not own the released manual controls.
  */
 import QtQuick
 import org.kde.kirigami as Kirigami
@@ -18,6 +18,7 @@ PlasmoidItem {
     readonly property bool savingAvailable: saving !== null && saving.available
     readonly property bool savingRestartRequired: saving !== null && (saving.checks || []).some(check => check.restartRequired)
     readonly property bool savingRetryNeeded: saving !== null && ((saving.errors || []).length > 0 || (saving.pending || []).some(key => !(saving.checks || []).some(check => check.key === key && check.restartRequired)))
+    readonly property bool savingControlsLocked: saving !== null && (saving.enabled || (saving.restoring && savingRetryNeeded))
     readonly property bool savingTransition: "power-saving" in pending
     readonly property bool savingChecked: savingTransition ? pending["power-saving"].value === "on" : (saving !== null && saving.enabled)
     property bool panelVisible: false
@@ -59,7 +60,7 @@ PlasmoidItem {
         if (!live.profile)
             return i18n("Reading state…");
         const parts = [i18n("Profile %1", live.profile)];
-        if (savingActive)
+        if (saving !== null && saving.enabled)
             parts.push(i18n("Maximum battery saving"));
         const battery = hw ? hw.battery : null;
         if (battery && battery.percent !== null)
@@ -92,7 +93,7 @@ PlasmoidItem {
     }
 
     function apply(setting, value) {
-        if (setting !== "power-saving" && (savingActive || savingTransition || !savingAvailable))
+        if (setting !== "power-saving" && (savingControlsLocked || savingTransition || !savingAvailable))
             return;
         pending = Object.assign({}, pending, { [setting]: { value: value } });
         enqueueAction(setting, value);

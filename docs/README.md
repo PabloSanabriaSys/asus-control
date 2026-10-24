@@ -43,7 +43,7 @@ plasmoid/ (QML) ────┤
   - Un error no previsto devuelve código de salida 1, con la traza en stderr.
 - **Verificación:** cada cambio se confirma con una lectura posterior; si no coincide, se lanza `VerificationError`.
 
-El applet usa `set profile|brightness|charge-limit|lightbar|fan` y `power-saving on|off`. Las escrituras manuales toman el bloqueo del ahorro. Todos los ajustes manuales, incluido `charge-limit`, se rechazan mientras exista una sesión activa o una restauración pendiente. Las lecturas no escriben.
+El applet usa `set profile|brightness|charge-limit|lightbar|fan` y `power-saving on|off`. Las escrituras manuales toman el bloqueo del ahorro. Todos los ajustes manuales, incluido `charge-limit`, se rechazan durante el ahorro o una restauración fallida. Si solo queda la GPU pendiente de reiniciar, se liberan los controles manuales. Las lecturas no escriben.
 
 ### Applet
 
@@ -199,4 +199,4 @@ El QML no tiene pruebas automáticas. Se comprueba en Plasma con `plasmawindowed
 
 Una GPU en cola conserva su ajuste pendiente, sin tratarlo como fallo ni confirmarlo como activo. `PowerSavingDevice.restart_required` diferencia una cola correcta de una escritura fallida. Después de reiniciar se verifica el valor real antes de confirmar. Apagar el ahorro antes del reinicio cancela la cola; si ya cambió la GPU, se solicita el modo original y el respaldo permanece hasta el siguiente reinicio. El desinstalador no retira el backend mientras esa restauración siga pendiente.
 
-`PowerSavingMigration` añade battery.chargeLimit y gpu.configuration a sesiones antiguas todavía activas: captura y persiste solo los originales de los controles nuevos, sin sustituir los originales de los demás. La carga al 100 % se mantiene y verifica como cualquier otro ajuste administrado; la CLI y el applet impiden cambios manuales mientras existe una sesión.
+`PowerSavingMigration` añade battery.chargeLimit y gpu.configuration a sesiones antiguas todavía activas: captura y persiste solo los originales de los controles nuevos, sin sustituir los originales de los demás. La carga al 100 % se mantiene y verifica como cualquier otro ajuste administrado; la CLI y el applet impiden cambios manuales durante el ahorro. Al apagarlo, el respaldo conserva únicamente la GPU pendiente una vez verificados los demás originales. El servicio deja de auditar los controles liberados para no sobrescribir cambios manuales. Al reactivar antes del reinicio, captura sus valores actuales y conserva el original pendiente de la GPU.

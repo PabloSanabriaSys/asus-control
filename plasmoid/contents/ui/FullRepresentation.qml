@@ -17,7 +17,7 @@ PlasmaExtras.Representation {
     readonly property var live: applet.live
     // Los controles no se bloquean mientras se aplica un cambio: muestran el valor pendiente.
     readonly property bool controlsEnabled: applet.available && applet.savingAvailable
-                                           && !applet.savingActive && !applet.savingTransition
+                                           && !applet.savingControlsLocked && !applet.savingTransition
     readonly property var profile: applet.shown("profile")
     readonly property string unavailable: i18n("Not available")
 

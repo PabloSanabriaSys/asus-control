@@ -53,7 +53,7 @@ Activa **Ahorro máximo de batería** para guardar los ajustes actuales y reduci
 | Pantalla inactiva | Apagado después de 2 minutos |
 | Suspensión por inactividad | Después de 10 minutos, si el sistema admite suspender |
 
-Conserva los ajustes de brillo y frecuencia de los monitores externos y la acción de la tapa. Los cambios automáticos de perfil de asusd y de teclado/perfil de KDE se coordinan temporalmente con el ahorro y se restauran después. Los controles manuales, incluido el límite de carga, quedan bloqueados hasta desactivar el ahorro y completar la restauración. El servicio vuelve a fijar el límite en 100 % si otra herramienta lo cambia durante el ahorro.
+Conserva los ajustes de brillo y frecuencia de los monitores externos y la acción de la tapa. Los cambios automáticos de perfil de asusd y de teclado/perfil de KDE se coordinan temporalmente con el ahorro y se restauran después. Los controles manuales, incluido el límite de carga, se habilitan al desactivar el ahorro y restaurar sus valores. Si únicamente queda la GPU pendiente de reiniciar, puedes cambiar los demás ajustes libremente; esos cambios se conservan durante la espera y después del reinicio. El servicio vuelve a fijar el límite en 100 % si otra herramienta lo cambia durante el ahorro.
 
 Los ajustes no compatibles se indican en el panel. Para la GPU se usan las solicitudes diferidas de asusd: el modo integrado se aplica al próximo reinicio, sin cerrar tu sesión automáticamente. Hasta entonces el applet indica **pendiente de reinicio**, no «GPU integrada activa».
 

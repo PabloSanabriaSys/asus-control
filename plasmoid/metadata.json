@@ -14,7 +14,7 @@
         "Id": "com.pablosanabria.asuscontrol",
         "License": "Apache-2.0",
         "Name": "ASUS Control",
-        "Version": "0.4.2"
+        "Version": "0.4.3"
     },
     "X-Plasma-API-Minimum-Version": "6.0",
     "X-Plasma-NotificationArea": "true",
