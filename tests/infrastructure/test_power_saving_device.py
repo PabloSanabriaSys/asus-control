@@ -76,7 +76,8 @@ def test_absent_lightbar_is_never_written(tmp_path: Path) -> None:
     assert not any(call[0] == "set-property" and call[4] == "LedPower" for call in fake.calls)
 
 
-def test_brightness_ceiling_never_increases_existing_brightness() -> None:
-    assert PowerSavingHardware._brightness_target('{"max":100,"value":10}', 30) == (
-        '{"max":100,"value":10}'
-    )
+def test_new_sessions_never_capture_screen_brightness(tmp_path: Path) -> None:
+    hardware = device(FakeAsusdBus(), tmp_path / "config")
+    capture = hardware.capture()
+    assert "display.brightness" not in {s.key for s in capture.settings}
+    assert "display.brightness" not in capture.unavailable

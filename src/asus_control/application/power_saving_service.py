@@ -10,7 +10,11 @@ from asus_control.application.ports import (
     PowerSavingStore,
 )
 from asus_control.domain.errors import HardwareAccessError
-from asus_control.domain.power_saving import PowerSavingSession
+from asus_control.domain.power_saving import (
+    PowerSavingCheck,
+    PowerSavingInspection,
+    PowerSavingSession,
+)
 
 
 class PowerSavingService:
@@ -20,34 +24,64 @@ class PowerSavingService:
         store: PowerSavingStore,
         lock: FanLock,
         hardware_lock: FanLock = nullcontext,
+        retired_keys: tuple[str, ...] = (),
     ) -> None:
         self._device = device
         self._store = store
         self._lock = lock
         self._hardware_lock = hardware_lock
+        self._retired_keys = retired_keys
 
     def status(self) -> PowerSavingSession | None:
         """Read only: displaying the applet must never apply a setting."""
         return self._store.load()
 
-    def set_enabled(self, enabled: bool, brightness_percent: int = 30) -> None:
+    def inspect(self) -> PowerSavingInspection:
+        """Verify real values without writing or trusting yesterday's confirmation."""
+        session = self._store.load()
+        if session is None:
+            return PowerSavingInspection(None)
+        checks = []
+        for setting in session.settings:
+            expected = (
+                setting.target
+                if session.enabled and setting.key not in self._retired_keys
+                else setting.original
+            )
+            try:
+                actual = self._device.read(setting.key)
+            except HardwareAccessError as exc:
+                checks.append(PowerSavingCheck(setting.key, expected, None, str(exc)))
+            else:
+                checks.append(PowerSavingCheck(setting.key, expected, actual))
+        return PowerSavingInspection(session, tuple(checks))
+
+    def set_enabled(self, enabled: bool) -> None:
         with self._lock(), self._hardware_lock():
             session = self._store.load()
             if session is None:
                 if not enabled:
                     return
-                capture = self._device.capture(brightness_percent)
+                capture = self._device.capture()
                 session = PowerSavingSession(
                     enabled=True,
                     settings=capture.settings,
-                    pending=tuple(setting.key for setting in capture.settings),
+                    pending=tuple(
+                        setting.key
+                        for setting in capture.settings
+                        if setting.original != setting.target
+                    ),
                     unavailable=capture.unavailable,
                 )
             else:
                 session = replace(
                     session,
                     enabled=enabled,
-                    pending=tuple(setting.key for setting in session.settings),
+                    pending=(
+                        session.pending
+                        if session.enabled == enabled
+                        else tuple(setting.key for setting in session.settings)
+                    ),
                     errors=(),
                 )
             # This must succeed BEFORE the first hardware write, including when disabling.
@@ -68,18 +102,31 @@ class PowerSavingService:
             )
 
     @contextmanager
-    def manual_control(self) -> Iterator[None]:
+    def manual_control(self, *, unmanaged: bool = False) -> Iterator[None]:
         with self._lock():
-            self.require_manual_control()
+            if not unmanaged:
+                self.require_manual_control()
             yield
 
     def _apply(self, session: PowerSavingSession) -> None:
+        # Removed settings must be restored last: reloading the desktop policy can
+        # otherwise overwrite the restored brightness before its backup is retired.
+        session = replace(
+            session,
+            settings=tuple(s for s in session.settings if s.key not in self._retired_keys)
+            + tuple(s for s in session.settings if s.key in self._retired_keys),
+        )
         pending = list(session.pending)
         if session.enabled:
             pending = self._unconfirmed_targets(session)
             if not pending:
-                if session.pending or session.errors:
-                    self._store.save(replace(session, pending=(), errors=()))
+                retained = tuple(s for s in session.settings if s.key not in self._retired_keys)
+                if session.pending or session.errors or retained != session.settings:
+                    self._store.save(
+                        replace(session, settings=retained, pending=(), errors=())
+                        if retained
+                        else None
+                    )
                 return
             session = replace(session, pending=tuple(pending), errors=())
             self._store.save(session)
@@ -87,9 +134,13 @@ class PowerSavingService:
         for setting in session.settings:
             if setting.key not in pending:
                 continue
-            value = setting.target if session.enabled else setting.original
+            value = (
+                setting.target
+                if session.enabled and setting.key not in self._retired_keys
+                else setting.original
+            )
             try:
-                if self._device.read(setting.key) != value:
+                if setting.key in session.pending or self._device.read(setting.key) != value:
                     self._device.write(setting.key, value)
                 if self._device.read(setting.key) != value:
                     raise HardwareAccessError(f"Unconfirmed setting: {setting.key}")
@@ -100,7 +151,15 @@ class PowerSavingService:
             session = replace(session, pending=tuple(pending), errors=tuple(errors))
             self._store.save(session)
         self._verify_configuration(session, pending, errors)
-        self._store.save(replace(session, pending=tuple(pending), errors=tuple(errors)))
+        session = replace(
+            session,
+            settings=tuple(
+                s for s in session.settings if s.key not in self._retired_keys or s.key in pending
+            ),
+            pending=tuple(pending),
+            errors=tuple(errors),
+        )
+        self._store.save(session if session.settings else None)
         if not session.enabled and not pending:
             self._store.save(None)
         elif errors:
@@ -109,8 +168,14 @@ class PowerSavingService:
     def _unconfirmed_targets(self, session: PowerSavingSession) -> list[str]:
         pending = []
         for setting in session.settings:
+            if setting.key in session.pending:
+                pending.append(setting.key)
+                continue
             try:
-                if self._device.read(setting.key) == setting.target:
+                expected = (
+                    setting.target if setting.key not in self._retired_keys else setting.original
+                )
+                if self._device.read(setting.key) == expected:
                     continue
             except HardwareAccessError:
                 pass
@@ -126,7 +191,11 @@ class PowerSavingService:
             if setting.key in pending:
                 continue
             try:
-                expected = setting.target if session.enabled else setting.original
+                expected = (
+                    setting.target
+                    if session.enabled and setting.key not in self._retired_keys
+                    else setting.original
+                )
                 if self._device.read(setting.key) != expected:
                     raise HardwareAccessError("Confirmed value changed again")
             except HardwareAccessError as exc:

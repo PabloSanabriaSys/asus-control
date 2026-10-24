@@ -34,7 +34,7 @@ PlasmaExtras.Representation {
         if (!battery || battery.percent === null)
             return "battery-missing";
         const level = String(Math.round(battery.percent / 10) * 10).padStart(3, "0");
-        return "battery-" + level + (battery.acOnline ? "-charging" : "");
+        return "battery-" + level + (battery.status === "Charging" ? "-charging" : "");
     }
 
     function batteryStatusText() {
@@ -182,26 +182,6 @@ PlasmaExtras.Representation {
                           : i18n("Saves your current settings before reducing power consumption.")
                 }
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    visible: !full.applet.savingActive
-                    PlasmaComponents.Label {
-                        Layout.fillWidth: true
-                        text: i18n("Screen brightness ceiling")
-                    }
-                    PlasmaComponents.SpinBox {
-                        from: 1
-                        to: 100
-                        stepSize: 5
-                        value: full.applet.savingBrightness
-                        enabled: !full.applet.busy
-                        onValueModified: {
-                            full.applet.setSavingBrightness(value);
-                        }
-                    }
-                    PlasmaComponents.Label { text: "%" }
-                }
-
                 PlasmaComponents.Label {
                     Layout.fillWidth: true
                     visible: full.applet.savingActive
@@ -221,7 +201,8 @@ PlasmaExtras.Representation {
 
                 PlasmaComponents.Button {
                     visible: full.applet.savingActive && full.applet.saving
-                             && full.applet.saving.errors.length > 0 && !full.applet.saving.restoring
+                             && (full.applet.saving.errors.length > 0 || full.applet.saving.pending.length > 0)
+                             && !full.applet.saving.restoring
                     enabled: !full.applet.busy
                     text: i18n("Retry battery saving")
                     onClicked: full.applet.apply("power-saving", "on")
@@ -383,10 +364,11 @@ PlasmaExtras.Representation {
 
             Section {
                 title: i18n("Charge limit")
+                note: full.live.chargeLimit !== null ? i18n("Charging stops at %1 %", full.applet.shown("charge-limit")) : ""
 
                 SegmentedRow {
                     Layout.fillWidth: true
-                    enabled: full.controlsEnabled && full.live.chargeLimit !== null
+                    enabled: full.applet.available && !full.applet.savingTransition && full.live.chargeLimit !== null
                     current: full.applet.shown("charge-limit")
                     options: [
                         { value: 60, label: i18n("%1 %", 60) },

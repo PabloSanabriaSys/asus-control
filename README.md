@@ -19,16 +19,6 @@ Applet (plasmoide) para la bandeja de KDE Plasma 6 que controla un portátil ASU
 
 Está hecho y probado para el **ROG Strix G16 G615JH** con asusd 6.5.0 en Fedora (Wayland). La interfaz QML recibe el estado de asusd por D-Bus; un backend Python sin dependencias externas coordina los cambios y la recuperación de ajustes. Se muestra en inglés o en español según el idioma del sistema.
 
-## Capturas
-
-<div align="center">
-    <img src="docs/media/applet-en.png" alt="ASUS Control en inglés" width="48%">
-    <img src="docs/media/applet-es.png" alt="ASUS Control en español" width="48%">
-</div>
-<div align="center">
-    <sub>Popup del applet con el sistema en inglés (izquierda) y en español (derecha).</sub>
-</div>
-
 ## Funciones
 
 - **Ahorro máximo de batería:** un interruptor aplica los ajustes compatibles y recupera tu configuración anterior al desactivarlo, incluso después de reiniciar.
@@ -49,8 +39,6 @@ Está hecho y probado para el **ROG Strix G16 G615JH** con asusd 6.5.0 en Fedora
 
 ## Ahorro máximo de batería
 
-![Ahorro máximo de batería activado](docs/media/battery-saving-es.png)
-
 Activa **Ahorro máximo de batería** para guardar los ajustes actuales y reducir el consumo. Desactívalo para recuperar los valores que tenías antes. El respaldo sobrevive a cierres del applet, apagados y reinicios: al iniciar sesión en KDE, el servicio de usuario recupera el ahorro si seguía activado.
 
 | Ajuste compatible | Durante el ahorro |
@@ -59,12 +47,11 @@ Activa **Ahorro máximo de batería** para guardar los ajustes actuales y reduci
 | Ventilación de Balanced y Quiet | Control automático; se guardan las curvas originales completas |
 | Teclado y cinta LED | Apagados; la cinta también se desactiva en arranque, suspensión y apagado |
 | Pantalla interna | 60 Hz o menos, conservando la resolución |
-| Brillo de pantalla interna | Como máximo 30 % por defecto, configurable antes de activar; nunca aumenta el brillo actual |
 | Overdrive del panel | Desactivado |
 | Pantalla inactiva | Apagado después de 2 minutos |
 | Suspensión por inactividad | Después de 10 minutos, si el sistema admite suspender |
 
-No cambia el brillo ni la frecuencia actuales del monitor externo, la acción de la tapa o el límite de carga. Los cambios automáticos de perfil de asusd y de brillo/perfil de KDE se coordinan temporalmente con el ahorro y se restauran después. Los controles manuales del applet se deshabilitan hasta completar la restauración.
+No cambia el brillo ni la frecuencia actuales del monitor externo, la acción de la tapa o el límite de carga. Los cambios automáticos de perfil de asusd y de teclado/perfil de KDE se coordinan temporalmente con el ahorro y se restauran después. Los controles administrados se deshabilitan hasta completar la restauración; el límite de carga sigue disponible.
 
 Los ajustes no compatibles se indican en el panel. **La GPU no se cambia automáticamente:** en este equipo el cambio puede requerir reiniciar y afectar al monitor externo; el applet informa de esa limitación. El nombre del modo describe sus ajustes de ahorro, no garantiza una autonomía determinada.
 
@@ -75,13 +62,22 @@ Si falla una aplicación o restauración, se muestran los ajustes pendientes y s
 Desde la terminal:
 
 ```sh
-asus-control power-saving on                    # activa, brillo máximo 30 %
-asus-control power-saving on --brightness 20    # elige el brillo al iniciar un nuevo ciclo
+asus-control power-saving on                    # activa el ahorro
 asus-control power-saving off                   # restaura los valores anteriores
-asus-control state                              # incluye estado, ajustes pendientes y errores
+asus-control power-saving audit                 # compara objetivos y valores leídos ahora
+asus-control state                              # estado y comprobaciones en vivo
+asus-control battery                            # batería sin consultar asusd
 ```
 
-El brillo elegido no sustituye el respaldo si el ahorro ya estaba activado; para cambiarlo, desactiva y vuelve a activar. La configuración se guarda en `${XDG_STATE_HOME:-~/.local/state}/asus-control/power-saving.json`. No borres ese archivo mientras haya cambios pendientes de restaurar.
+El ahorro no fija un brillo de pantalla propio: ese ajuste queda a cargo de KDE y de tus cambios manuales. La configuración se guarda en `${XDG_STATE_HOME:-~/.local/state}/asus-control/power-saving.json`. No borres ese archivo mientras haya cambios pendientes de restaurar.
+
+### Porcentaje de batería y límite de carga
+
+El porcentaje del encabezado es la carga real leída del equipo. Los botones **60 / 80 / 100 %** fijan el límite de carga: si está en 60 %, el portátil conectado puede permanecer en 60 % y mostrar «Sin cargar». Para preparar una carga completa, elige 100 %; ese control funciona también con el ahorro activado. El porcentaje subirá a medida que cargue, no al cambiar el botón.
+
+La batería y los sensores se actualizan cada 2 segundos con el popup o la ventana independiente visibles. Con el panel cerrado se actualiza únicamente la batería cada 30 segundos, sin consultar los controles de asusd. El icono muestra carga en curso solo cuando el equipo informa «Cargando».
+
+Las comprobaciones del ahorro leen los valores actuales: si otra aplicación cambia un ajuste o falla una lectura, el panel deja de mostrarlo como confirmado y permite reintentar. La auditoría no cambia la configuración. La [comprobación de la versión 0.4.1](docs/validation-0.4.1.md) detalla las pruebas reales y sus límites.
 
 ## Requisitos
 

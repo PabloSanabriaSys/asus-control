@@ -8,7 +8,7 @@ import threading
 import time
 
 from asus_control.application.power_saving_service import PowerSavingService
-from asus_control.domain.errors import AsusControlError
+from asus_control.domain.errors import AsusControlError, LockBusyError
 from asus_control.infrastructure.sysfs import SysfsSensors
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,8 @@ def watch(saving: PowerSavingService) -> int:
                 sleep_offset = offset
             else:
                 last_reconcile = float("-inf")
+        except LockBusyError:
+            logger.debug("A foreground operation owns the lock; checking again later")
         except AsusControlError:
             logger.exception("Battery-saving reconciliation will be retried")
         stopped.wait(CHECK_SECONDS)

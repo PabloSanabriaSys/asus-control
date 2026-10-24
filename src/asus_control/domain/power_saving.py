@@ -23,3 +23,21 @@ class PowerSavingSession:
 class PowerSavingCapture:
     settings: tuple[SavedSetting, ...]
     unavailable: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class PowerSavingCheck:
+    key: str
+    expected: str
+    actual: str | None
+    error: str | None = None
+
+    @property
+    def confirmed(self) -> bool:
+        return self.actual == self.expected and self.error is None
+
+
+@dataclass(frozen=True)
+class PowerSavingInspection:
+    session: PowerSavingSession | None
+    checks: tuple[PowerSavingCheck, ...] = ()

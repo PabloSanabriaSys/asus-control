@@ -14,16 +14,24 @@ QtObject {
             "fans.balanced": i18n("Automatic fans"),
             "lighting.lightbar": i18n("Lightbar off"),
             "display.refresh": i18n("Internal display at 60 Hz or lower"),
-            "display.brightness": i18n("Reduced internal display brightness"),
             "panel.overdrive": i18n("Panel overdrive off"),
             "lighting.keyboard": i18n("Keyboard lighting off"),
             "platform.profile": i18n("Quiet profile")
         };
         const parts = [];
-        for (const key of state.settings || []) {
-            if (key in labels && (state.pending || []).indexOf(key) === -1)
-                parts.push(labels[key]);
+        const checks = state.checks || [];
+        for (const check of checks) {
+            const key = check.key;
+            if (!(key in labels) || !check.confirmed || (state.pending || []).includes(key))
+                continue;
+            if (key === "fans.balanced" && !checks.some(c => c.key === "fans.quiet" && c.confirmed && !(state.pending || []).includes(c.key)))
+                continue;
+            if (key === "platform.autoAc" && !checks.some(c => c.key === "platform.autoBattery" && c.confirmed && !(state.pending || []).includes(c.key)))
+                continue;
+            parts.push(labels[key]);
         }
+        if (checks.some(check => !check.confirmed) || (state.pending || []).length > 0)
+            parts.push(i18n("Some settings are not applied. Retry to apply battery saving."));
         if ((state.unavailable || []).includes("gpu.manual"))
             parts.push(i18n("GPU unchanged: switching may require restarting or affect external displays."));
         if ((state.unavailable || []).includes("gpu.integrated"))

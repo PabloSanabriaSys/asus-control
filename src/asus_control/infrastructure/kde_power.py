@@ -25,7 +25,6 @@ def encode(value: object) -> str:
 
 def policy_targets(can_suspend: bool) -> dict[str, str]:
     entries = {
-        "Display/UseProfileSpecificDisplayBrightness": "false",
         "Keyboard/UseProfileSpecificKeyboardBrightness": "false",
         "Display/TurnOffDisplayWhenIdle": "true",
         "Display/TurnOffDisplayIdleTimeoutSec": "120",
@@ -57,7 +56,8 @@ class KdePower:
         self._power = Busctl(SubprocessRunner("/usr/bin/busctl"), POWER_SERVICE, scope="--user")
         self._screen = SubprocessRunner("/usr/bin/kscreen-doctor")
 
-    def read_brightness(self) -> str:
+    def read_legacy_brightness(self) -> str:
+        """Compatibility only: recover the original brightness from a 0.4.0 backup."""
         path = self._internal_brightness_path()
         value = self._brightness.get_property(path, BRIGHTNESS_INTERFACE, "Brightness")
         maximum = self._brightness.get_property(path, BRIGHTNESS_INTERFACE, "MaxBrightness")
@@ -67,7 +67,7 @@ class KdePower:
             raise HardwareAccessError("Internal display brightness is outside its range")
         return encode({"value": value, "max": maximum})
 
-    def write_brightness(self, value: str) -> None:
+    def write_legacy_brightness(self, value: str) -> None:
         data = json.loads(value)
         path = self._internal_brightness_path()
         self._brightness.call(path, BRIGHTNESS_INTERFACE, "SetBrightness", "iu", data["value"], 1)

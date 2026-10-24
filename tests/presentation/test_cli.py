@@ -7,7 +7,7 @@ import pytest
 
 from asus_control.application.fan_service import FanService
 from asus_control.application.hardware_service import HardwareService
-from asus_control.domain.models import Brightness, Profile
+from asus_control.domain.models import BatteryStatus, Brightness, Profile
 from asus_control.presentation.cli import main, run
 from tests.fakes import FakeLightbar, FakePlatform, FakeSensors, no_lock
 
@@ -92,3 +92,22 @@ def test_main_returns_error_code_on_unexpected_failure() -> None:
         raise RuntimeError("fallo de programación")
 
     assert main(["state"], broken) == 1
+
+
+def test_battery_command_reads_fresh_capacity_without_asusd() -> None:
+    platform = FakePlatform()
+    sensors = FakeSensors(battery=BatteryStatus(60, True, "Not charging"))
+    hardware = HardwareService(platform, FakeLightbar(), sensors, FanService(platform, no_lock))
+    assert run(["battery"], hardware)["state"]["battery"]["percent"] == 60
+    sensors.battery = BatteryStatus(59, False, "Discharging")
+    assert run(["battery"], hardware)["state"]["battery"] == {
+        "percent": 59,
+        "acOnline": False,
+        "status": "Discharging",
+    }
+    assert platform.calls == []
+
+
+def test_screen_brightness_option_is_removed() -> None:
+    with pytest.raises(SystemExit):
+        run(["power-saving", "on", "--brightness", "20"], make_service())

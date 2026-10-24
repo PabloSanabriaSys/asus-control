@@ -15,7 +15,14 @@ from asus_control.domain.errors import (
     VerificationError,
 )
 from asus_control.domain.fan_modes import FAN_PROFILE
-from asus_control.domain.models import Brightness, FanMode, HardwareState, Profile, Setting
+from asus_control.domain.models import (
+    BatteryStatus,
+    Brightness,
+    FanMode,
+    HardwareState,
+    Profile,
+    Setting,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +64,9 @@ class HardwareService:
 
     def read_profile(self) -> Profile | None:
         return _optional(self._platform.get_profile)
+
+    def read_battery(self) -> BatteryStatus | None:
+        return self._sensors.read_battery()
 
     def set_profile(self, profile: Profile) -> None:
         self._platform.set_profile(profile)

@@ -23,11 +23,11 @@ PLATFORM_INTERFACE = "xyz.ljones.Platform"
 class _Control:
     read: Callable[[], str]
     write: Callable[[str], None]
-    target: Callable[[str, int], str]
+    target: Callable[[str], str]
 
 
-def _fixed(value: str) -> Callable[[str, int], str]:
-    return lambda _original, _percent: value
+def _fixed(value: str) -> Callable[[str], str]:
+    return lambda _original: value
 
 
 class PowerSavingHardware:
@@ -74,10 +74,12 @@ class PowerSavingHardware:
                 "display.refresh": _Control(
                     self._kde.read_refresh,
                     self._kde.write_refresh,
-                    lambda _value, _percent: self._kde.refresh_target(),
+                    lambda _value: self._kde.refresh_target(),
                 ),
                 "display.brightness": _Control(
-                    self._kde.read_brightness, self._kde.write_brightness, self._brightness_target
+                    self._kde.read_legacy_brightness,
+                    self._kde.write_legacy_brightness,
+                    lambda value: value,
                 ),
                 "panel.overdrive": _Control(
                     self._read_overdrive, self._write_overdrive, _fixed("0")
@@ -97,17 +99,17 @@ class PowerSavingHardware:
         )
         return controls
 
-    def capture(self, brightness_percent: int) -> PowerSavingCapture:
-        if not 1 <= brightness_percent <= 100:
-            raise HardwareAccessError("Brightness must be between 1 and 100 percent")
+    def capture(self) -> PowerSavingCapture:
         settings: list[SavedSetting] = []
         unavailable: list[str] = []
         # Verify the essential control before collecting optional capabilities.
         self._platform.get_profile()
         for key, control in self._controls.items():
+            if key == "display.brightness":
+                continue  # Restore old snapshots only; never manage screen brightness again.
             try:
                 original = self.read(key)
-                target = control.target(original, brightness_percent)
+                target = control.target(original)
             except HardwareAccessError:
                 if key == "platform.profile":
                     raise
@@ -169,7 +171,7 @@ class PowerSavingHardware:
             )
 
     @staticmethod
-    def _automatic_fans(original: str, _percent: int) -> str:
+    def _automatic_fans(original: str) -> str:
         return encode([dict(item, enabled=False) for item in json.loads(original)])
 
     def _read_lightbar(self) -> str:
@@ -183,17 +185,19 @@ class PowerSavingHardware:
 
     def _read_policy(self) -> str:
         self._kde.check_policy_support()
-        return self._kde.read_policy(list(policy_targets(True)))
+        return self._kde.read_policy(
+            [
+                *policy_targets(True),
+                *(
+                    f"{p}][Display/UseProfileSpecificDisplayBrightness"
+                    for p in ("AC", "Battery", "LowBattery")
+                ),
+            ]
+        )
 
-    def _policy_target(self, original: str, _percent: int) -> str:
+    def _policy_target(self, original: str) -> str:
         targets = policy_targets(self._kde.can_suspend())
         return encode(dict(json.loads(original), **targets))
-
-    @staticmethod
-    def _brightness_target(original: str, percent: int) -> str:
-        data = json.loads(original)
-        data["value"] = min(data["value"], max(1, data["max"] * percent // 100))
-        return encode(data)
 
     def _read_overdrive(self) -> str:
         value = self._bus.get_property(

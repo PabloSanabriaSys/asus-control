@@ -65,16 +65,9 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("state", help="full hardware state")
     commands.add_parser("profile", help="active profile only")
+    commands.add_parser("battery", help="battery only, without asusd calls")
     saving = commands.add_parser("power-saving", help="reversible maximum battery saving")
-    saving.add_argument("action", choices=["on", "off", "reconcile", "watch"])
-    saving.add_argument(
-        "--brightness",
-        type=int,
-        choices=range(1, 101),
-        default=30,
-        metavar="1-100",
-        help="internal panel brightness ceiling (default: 30)",
-    )
+    saving.add_argument("action", choices=["on", "off", "audit", "reconcile", "watch"])
     setter = commands.add_parser("set", help="change a setting and confirm it")
     targets = setter.add_subparsers(dest="setting", required=True)
     for setting, command in _SETTINGS.items():
@@ -90,18 +83,37 @@ def run(
     if args.command == "profile":
         profile = service.read_profile()
         return _response({"profile": profile.value if profile else None})
+    if args.command == "battery":
+        battery = service.read_battery()
+        return _response(
+            {
+                "battery": None
+                if battery is None
+                else {
+                    "percent": battery.percent,
+                    "acOnline": battery.ac_online,
+                    "status": battery.charging_state,
+                }
+            }
+        )
     try:
         if args.command == "power-saving":
             if saving is None:
                 raise AsusControlError("Battery saving is not configured")
             if args.action == "reconcile":
                 saving.reconcile()
+            elif args.action == "audit":
+                pass
             elif args.action == "watch":
                 raise AsusControlError("The watcher must be started through the installed launcher")
             else:
-                saving.set_enabled(args.action == "on", args.brightness)
+                saving.set_enabled(args.action == "on")
         elif args.command == "set":
-            with saving.manual_control() if saving else nullcontext():
+            with (
+                saving.manual_control(unmanaged=args.setting == Setting.CHARGE_LIMIT)
+                if saving
+                else nullcontext()
+            ):
                 _SETTINGS[Setting(args.setting)].apply(service, args.value)
     except AsusControlError as error:
         return _response(_state(service, saving), error=error_to_json(error))
@@ -112,23 +124,42 @@ def _state(service: HardwareService, saving: PowerSavingService | None) -> JsonO
     state = state_to_json(service.read_state())
     if saving is not None:
         try:
-            session = saving.status()
+            inspection = saving.inspect()
+            session = inspection.session
         except AsusControlError as exc:
             state["powerSaving"] = {
                 "available": False,
                 "enabled": False,
                 "restoring": False,
                 "errors": [str(exc)],
+                "checks": [],
             }
         else:
+            pending = list(session.pending) if session else []
+            errors = list(session.errors) if session else []
+            for check in inspection.checks:
+                if not check.confirmed and check.key not in pending:
+                    pending.append(check.key)
+                if check.error:
+                    errors.append(f"{check.key}: {check.error}")
             state["powerSaving"] = {
                 "available": True,
                 "enabled": session.enabled if session else False,
                 "restoring": session is not None and not session.enabled,
-                "pending": list(session.pending) if session else [],
+                "pending": pending,
                 "unavailable": list(session.unavailable) if session else [],
                 "settings": [item.key for item in session.settings] if session else [],
-                "errors": list(session.errors) if session else [],
+                "errors": list(dict.fromkeys(errors)),
+                "checks": [
+                    {
+                        "key": check.key,
+                        "confirmed": check.confirmed,
+                        "expected": check.expected,
+                        "actual": check.actual,
+                        "error": check.error,
+                    }
+                    for check in inspection.checks
+                ],
             }
     return state
 

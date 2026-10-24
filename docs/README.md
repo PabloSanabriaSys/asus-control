@@ -17,7 +17,7 @@ plasmoid/ (QML) ────┤
 |---|---|---|---|
 | Perfil, brillo, límite de carga, cinta LED | `AsusdLive.qml` (`DBus.Properties`), en vivo por `PropertiesChanged` | `asus-control set …` | lectura posterior verificada por el backend |
 | Ventilación | backend (`asus-control state`) | backend (`asus-control set fan …`) | respuesta verificada del backend |
-| Sensores y batería | backend, cada 2 s con el popup abierto | — | — |
+| Sensores y batería | backend, cada 2 s con el popup o ventana visibles; batería sola cada 30 s con el panel cerrado | — | — |
 | Ahorro | estado persistente del backend | `asus-control power-saving on/off` | verificación de cada ajuste y conservación del respaldo |
 
 ### Backend por capas
@@ -43,7 +43,7 @@ plasmoid/ (QML) ────┤
   - Un error no previsto devuelve código de salida 1, con la traza en stderr.
 - **Verificación:** cada cambio se confirma con una lectura posterior; si no coincide, se lanza `VerificationError`.
 
-El applet usa `set profile|brightness|charge-limit|lightbar|fan` y `power-saving on|off`. Las escrituras manuales toman el bloqueo del ahorro y se rechazan mientras exista una sesión activa o una restauración pendiente. Las lecturas no escriben.
+El applet usa `set profile|brightness|charge-limit|lightbar|fan` y `power-saving on|off`. Las escrituras manuales toman el bloqueo del ahorro. Los ajustes administrados se rechazan mientras exista una sesión activa o una restauración pendiente; `charge-limit` permanece disponible porque el ahorro no lo modifica. Las lecturas no escriben.
 
 ### Applet
 
@@ -93,16 +93,24 @@ Los controles ASUS pasan por la interfaz D-Bus de asusd (servicio `xyz.ljones.As
 - `application/power_saving_service.py`: captura primero, persiste antes de escribir y confirma cada cambio. La reactivación y reconciliación reutilizan el respaldo original. La restauración conserva los fallos pendientes y verifica todo el conjunto antes de liberar el respaldo.
 - `infrastructure/power_saving_store.py`: JSON con versión 1 bajo `XDG_STATE_HOME`, archivo 0600 y directorio 0700 al crearlo. Usa archivo temporal, `fsync`, reemplazo atómico y sincronización del directorio. Un esquema desconocido o un archivo dañado genera un error sin sobrescribirlo.
 - `infrastructure/power_saving_device.py`: registro de ajustes reversibles de asusd y KDE. Cada ajuste modificado tiene lectura, escritura, valor original y objetivo. Las curvas guardan puntos y activación por ventilador, incluidos estados personalizados y Quiet.
-- `infrastructure/kde_power.py`: brillo por la interfaz `org.kde.ScreenBrightness.Display`, seleccionando `IsInternal`; frecuencia mediante `kscreen-doctor`, conservando resolución y resolviendo modos por conector/tamaño/Hz después de cada arranque. Solo cambia las entradas administradas de `powerdevilrc`, conserva las entradas ausentes como tales y recarga PowerDevil por D-Bus. La GPU se informa como limitación, sin cambios MUX automáticos.
+- `infrastructure/kde_power.py`: frecuencia mediante `kscreen-doctor`, conservando resolución y resolviendo modos por conector/tamaño/Hz después de cada arranque. Solo cambia las entradas administradas de `powerdevilrc`, conserva las entradas ausentes como tales y recarga PowerDevil por D-Bus. La GPU se informa como limitación, sin cambios MUX automáticos.
 - `infrastructure/power_saving_watch.py`: servicio de usuario ligado a `graphical-session.target`. Cada 15 s comprueba estado persistente y, solo si existe una sesión guardada, conexión AC y reanudación mediante CLOCK_BOOTTIME. Reconcilia al iniciar, reanudar, cambiar AC, encontrar pendientes o cada minuto. Sin cambios necesarios, no vuelve a escribir el respaldo.
 
 La política de PowerDevil usa los mismos valores en AC, Battery y LowBattery durante el ahorro. Se suspende a RAM tras 600 s solo si logind devuelve `CanSuspend=yes`, y se apaga la pantalla tras 120 s. Los inhibidores y capacidades siguen a cargo de KDE. La acción de la tapa, el brillo y la frecuencia de monitores externos y el límite de carga permanecen fuera del conjunto administrado.
 
-El bloqueo `asus-control-power-saving.lock` serializa las escrituras manuales con las transiciones del ahorro. Las transiciones además toman `alternar-ventilacion.lock` para no competir con el script externo de ventilación; los bloqueos se adquieren siempre en ese orden.
+El bloqueo `asus-control-power-saving.lock` admite una espera acotada de 3 s para que un clic no falle inmediatamente cuando el servicio está verificando. Serializa las escrituras manuales con las transiciones del ahorro. Las transiciones además toman `alternar-ventilacion.lock` para no competir con el script externo de ventilación; los bloqueos se adquieren siempre en ese orden.
 
-El estado JSON añade `powerSaving` con `available`, `enabled`, `restoring`, `pending`, `settings`, `unavailable` y `errors`. Un fallo esperado conserva la convención CLI de salida 0 con `ok:false`; los scripts deben examinar el JSON. El instalador preserva el respaldo en actualizaciones y el desinstalador aborta si no logra restaurar.
+El estado JSON añade `powerSaving` con `available`, `enabled`, `restoring`, `pending`, `settings`, `unavailable`, `errors` y `checks` (objetivo, lectura actual y confirmación por ajuste). `power-saving audit` y `state` comparan valores reales sin escribir; no usan el respaldo como prueba de que un ajuste sigue aplicado. Un fallo esperado conserva la convención CLI de salida 0 con `ok:false`; los scripts deben examinar el JSON. El instalador preserva el respaldo en actualizaciones y el desinstalador aborta si no logra restaurar.
 
 Las claves de PowerDevil se contrastaron con su [esquema oficial](https://github.com/KDE/powerdevil/blob/master/PowerDevilProfileSettings.kcfg), y las interfaces D-Bus se verificaron por introspección en el G615JH con asusd 6.5.0.
+
+### Recuperación y actualización desde 0.4.0
+
+El control de brillo de pantalla y la opción CLI `--brightness` se retiraron. No se captura ni aplica `display.brightness` en sesiones nuevas. Si existe un respaldo de 0.4.0, el servicio conserva la compatibilidad necesaria para restaurar ese valor una sola vez antes de eliminarlo del respaldo. Si falla, lo conserva para reintentar. La migración no sustituye los originales de los demás ajustes.
+
+Un ajuste pendiente cuya escritura guardó un valor pero falló en una operación posterior (por ejemplo, recargar PowerDevil) debe repetir la escritura completa al reintentar. Una lectura coincidente no basta para dar esa operación por terminada.
+
+El applet comunica la visibilidad de `FullRepresentation` al coordinador: `PlasmoidItem.expanded` por sí solo no cubre `plasmawindowed`. El refresco de batería con el panel cerrado utiliza una orden `battery` separada y combina su respuesta con el estado existente.
 
 ## Ventilación
 

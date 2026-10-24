@@ -8,7 +8,7 @@ from asus_control.application.fan_service import FanService
 from asus_control.application.hardware_service import HardwareService
 from asus_control.application.power_saving_service import PowerSavingService
 from asus_control.domain.errors import HardwareAccessError
-from asus_control.domain.power_saving import PowerSavingCapture, SavedSetting
+from asus_control.domain.power_saving import PowerSavingCapture, PowerSavingSession, SavedSetting
 from asus_control.infrastructure.power_saving_store import FilePowerSavingStore
 from asus_control.presentation.cli import run
 from tests.fakes import FakeLightbar, FakePlatform, FakeSensors, no_lock
@@ -23,7 +23,7 @@ class Device:
         self.ignore_writes = False
         self.crash = False
 
-    def capture(self, brightness_percent: int) -> PowerSavingCapture:
+    def capture(self) -> PowerSavingCapture:
         self.captures += 1
         return PowerSavingCapture(
             tuple(
@@ -217,3 +217,130 @@ def test_cli_exposes_corrupt_snapshot_without_overwriting_it(tmp_path: Path) -> 
     assert not state["available"]
     assert state["errors"]
     assert path.read_text() == "broken"
+
+
+def test_charge_limit_remains_editable_while_saving_is_active(tmp_path: Path) -> None:
+    saving = service(Device(), tmp_path / "state.json")
+    platform = FakePlatform()
+    hardware = HardwareService(
+        platform, FakeLightbar(), FakeSensors(), FanService(platform, no_lock)
+    )
+    saving.set_enabled(True)
+    assert run(["set", "charge-limit", "100"], hardware, saving)["ok"]
+    assert platform.charge_limit == 100
+    assert saving.status().enabled
+    saving.set_enabled(False)
+    assert platform.charge_limit == 100
+
+
+def test_audit_detects_external_drift_without_writes_or_recapture(tmp_path: Path) -> None:
+    path = tmp_path / "state.json"
+    device = Device()
+    saving = service(device, path)
+    saving.set_enabled(True)
+    device.values["profile"] = "Performance"
+    backup = path.read_bytes()
+    writes = list(device.writes)
+    inspection = saving.inspect()
+    check = next(c for c in inspection.checks if c.key == "profile")
+    assert not check.confirmed
+    assert check.expected == "Quiet" and check.actual == "Performance"
+    assert path.read_bytes() == backup
+    assert device.writes == writes
+    assert device.captures == 1
+
+
+def test_pending_write_is_repeated_when_side_effect_failed_after_value_was_saved(
+    tmp_path: Path,
+) -> None:
+    class ReloadFailure(Device):
+        failed = False
+
+        def write(self, key: str, value: str) -> None:
+            super().write(key, value)
+            if key == "profile" and not self.failed:
+                self.failed = True
+                raise HardwareAccessError("Configuration saved but reload failed")
+
+    device = ReloadFailure()
+    saving = service(device, tmp_path / "state.json")
+    with pytest.raises(HardwareAccessError):
+        saving.set_enabled(True)
+    assert device.values["profile"] == "Quiet"
+    assert saving.status().pending == ("profile",)
+    saving.reconcile()
+    assert device.writes.count("profile") == 2
+    assert saving.status().pending == ()
+
+
+def test_removed_brightness_is_restored_once_without_replacing_other_originals(
+    tmp_path: Path,
+) -> None:
+    device = Device()
+    device.values["display.brightness"] = "30"
+    store = FilePowerSavingStore(tmp_path / "state.json")
+    original = SavedSetting("profile", "Balanced", "Quiet")
+    store.save(
+        PowerSavingSession(True, (original, SavedSetting("display.brightness", "80", "30")), ())
+    )
+    saving = PowerSavingService(device, store, no_lock, retired_keys=("display.brightness",))
+    saving.reconcile()
+    assert device.values["display.brightness"] == "80"
+    assert store.load().settings == (original,)
+    saving.reconcile()
+    assert device.writes.count("display.brightness") == 1
+    assert device.captures == 0
+    saving.set_enabled(False)
+    assert device.values["profile"] == "Balanced"
+
+
+def test_failed_retirement_keeps_backup_and_does_not_apply_old_brightness_target(
+    tmp_path: Path,
+) -> None:
+    device = Device()
+    device.values["display.brightness"] = "30"
+    device.fail.add("display.brightness")
+    store = FilePowerSavingStore(tmp_path / "state.json")
+    original = PowerSavingSession(
+        True,
+        (
+            SavedSetting("profile", "Balanced", "Quiet"),
+            SavedSetting("display.brightness", "80", "30"),
+        ),
+        (),
+    )
+    store.save(original)
+    saving = PowerSavingService(device, store, no_lock, retired_keys=("display.brightness",))
+    with pytest.raises(HardwareAccessError):
+        saving.reconcile()
+    assert store.load().settings == original.settings
+    assert "display.brightness" in store.load().pending
+    assert device.values["display.brightness"] == "30"
+    assert device.captures == 0
+
+
+def test_old_brightness_restores_after_policy_side_effects(tmp_path: Path) -> None:
+    class PolicyReload(Device):
+        def write(self, key: str, value: str) -> None:
+            super().write(key, value)
+            if key == "profile":
+                self.values["display.brightness"] = "40"
+
+    device = PolicyReload()
+    device.values.update({"profile": "Quiet", "display.brightness": "30"})
+    store = FilePowerSavingStore(tmp_path / "state.json")
+    store.save(
+        PowerSavingSession(
+            True,
+            (
+                SavedSetting("display.brightness", "80", "30"),
+                SavedSetting("profile", "Balanced", "Quiet"),
+            ),
+            (),
+        )
+    )
+    saving = PowerSavingService(device, store, no_lock, retired_keys=("display.brightness",))
+    saving.set_enabled(False)
+    assert device.values["display.brightness"] == "80"
+    assert device.values["profile"] == "Balanced"
+    assert store.load() is None

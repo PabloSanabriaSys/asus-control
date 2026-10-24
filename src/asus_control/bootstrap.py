@@ -61,6 +61,7 @@ def build_power_saving_service() -> PowerSavingService:
     return PowerSavingService(
         PowerSavingHardware(AsusdPlatform(bus, aura), AsusdLightbar(bus, aura), bus, kde),
         FilePowerSavingStore(default_state_path()),
-        lambda: fan_lock(power_lock),
+        lambda: fan_lock(power_lock, wait_seconds=3.0),
         lambda: fan_lock(default_lock_path()),
+        retired_keys=("display.brightness",),
     )

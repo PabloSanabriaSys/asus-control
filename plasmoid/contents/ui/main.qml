@@ -18,12 +18,7 @@ PlasmoidItem {
     readonly property bool savingAvailable: saving !== null && saving.available
     readonly property bool savingTransition: "power-saving" in pending
     readonly property bool savingChecked: savingTransition ? pending["power-saving"].value === "on" : savingActive
-    property int savingBrightness: Plasmoid.configuration.savingBrightness
-
-    function setSavingBrightness(value) {
-        savingBrightness = value;
-        Plasmoid.configuration.savingBrightness = value;
-    }
+    property bool panelVisible: false
 
     /** Respuesta del backend Python: ventilación, sensores y batería. */
     property var hw: null
@@ -49,6 +44,9 @@ PlasmoidItem {
     fullRepresentation: FullRepresentation {
         applet: root
         texts: root.texts
+        onVisibleChanged: root.panelVisible = visible
+        Component.onCompleted: root.panelVisible = visible
+        Component.onDestruction: root.panelVisible = false
     }
 
     readonly property Texts texts: Texts {}
@@ -92,7 +90,7 @@ PlasmoidItem {
     }
 
     function apply(setting, value) {
-        if (setting !== "power-saving" && (savingActive || savingTransition || !savingAvailable))
+        if (setting !== "power-saving" && setting !== "charge-limit" && (savingActive || savingTransition || !savingAvailable))
             return;
         pending = Object.assign({}, pending, { [setting]: { value: value } });
         enqueueAction(setting, value);
@@ -127,7 +125,7 @@ PlasmoidItem {
 
     function enqueueAction(setting, value) {
         const command = setting === "power-saving"
-            ? "power-saving " + quote(value) + (value === "on" ? " --brightness " + savingBrightness : "")
+            ? "power-saving " + quote(value)
             : "set " + quote(setting) + " " + quote(value);
         const action = { command: command, setting: setting, value: value };
         // Si el mismo ajuste ya esperaba en la cola, solo cuenta el último valor.
@@ -177,6 +175,14 @@ PlasmoidItem {
             errorMessage = texts.backendFailure();
             return;
         }
+        if (item.command === "battery") {
+            if (hw === null) {
+                refresh();
+                return;
+            }
+            hw = Object.assign({}, hw, { battery: response.state.battery });
+            return;
+        }
         hw = response.state;
         if (item.setting === "power-saving")
             live.refreshAll();
@@ -199,10 +205,22 @@ PlasmoidItem {
         // Con el panel abierto: sensores, batería y ventilación cada 2 s (y al abrirlo).
         // Perfil, brillo, límite y cinta no se sondean: llegan en vivo por D-Bus.
         interval: root.panelRefreshMs
-        running: root.expanded
+        running: root.expanded || root.panelVisible
         repeat: true
         triggeredOnStart: true
         onTriggered: root.refresh()
+    }
+
+    Timer {
+        interval: 30000
+        running: !root.expanded && !root.panelVisible
+        repeat: true
+        onTriggered: {
+            if (!root.isQueued("battery")) {
+                root.queue = root.queue.concat([{ command: "battery", setting: null }]);
+                root.runNext();
+            }
+        }
     }
 
     Component.onCompleted: refresh()
