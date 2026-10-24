@@ -109,11 +109,7 @@ def run(
             else:
                 saving.set_enabled(args.action == "on")
         elif args.command == "set":
-            with (
-                saving.manual_control(unmanaged=args.setting == Setting.CHARGE_LIMIT)
-                if saving
-                else nullcontext()
-            ):
+            with saving.manual_control() if saving else nullcontext():
                 _SETTINGS[Setting(args.setting)].apply(service, args.value)
     except AsusControlError as error:
         return _response(_state(service, saving), error=error_to_json(error))
@@ -157,6 +153,7 @@ def _state(service: HardwareService, saving: PowerSavingService | None) -> JsonO
                         "expected": check.expected,
                         "actual": check.actual,
                         "error": check.error,
+                        "restartRequired": check.restart_required,
                     }
                     for check in inspection.checks
                 ],

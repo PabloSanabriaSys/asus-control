@@ -13,6 +13,7 @@ from asus_control.domain.models import Brightness, Fan, FanCurve, LightbarState,
 from asus_control.domain.power_saving import PowerSavingCapture, SavedSetting
 from asus_control.infrastructure.asusd import PROFILE_CODES
 from asus_control.infrastructure.busctl import Busctl
+from asus_control.infrastructure.gpu import AsusGpu
 from asus_control.infrastructure.kde_power import KdePower, encode, policy_targets
 
 PLATFORM_PATH = "/xyz/ljones"
@@ -38,6 +39,7 @@ class PowerSavingHardware:
         self._lightbar = lightbar
         self._bus = bus
         self._kde = kde
+        self._gpu = AsusGpu(bus)
         self._controls = self._build_controls()
 
     def _build_controls(self) -> dict[str, _Control]:
@@ -89,6 +91,16 @@ class PowerSavingHardware:
                     lambda value: self._platform.set_brightness(Brightness(value)),
                     _fixed(Brightness.OFF.value),
                 ),
+                "battery.chargeLimit": _Control(
+                    lambda: str(self._platform.get_charge_limit()),
+                    lambda value: self._platform.set_charge_limit(int(value)),
+                    _fixed("100"),
+                ),
+                "gpu.configuration": _Control(
+                    self._gpu.read,
+                    self._gpu.write,
+                    self._gpu.integrated_target,
+                ),
                 # Restore the profile last, after PowerDevil reload and asusd automatic settings.
                 "platform.profile": _Control(
                     lambda: self._platform.get_profile().value,
@@ -111,19 +123,15 @@ class PowerSavingHardware:
                 original = self.read(key)
                 target = control.target(original)
             except HardwareAccessError:
-                if key == "platform.profile":
+                if key in ("platform.profile", "battery.chargeLimit"):
                     raise
                 unavailable.append(key)
             else:
                 settings.append(SavedSetting(key, original, target))
-        try:
-            disabled = self._bus.get_property(
-                "/xyz/ljones/asus_armoury/dgpu_disable", "xyz.ljones.AsusArmoury", "CurrentValue"
-            )
-            unavailable.append("gpu.manual" if disabled == 0 else "gpu.integrated")
-        except HardwareAccessError:
-            unavailable.append("gpu.unavailable")
         return PowerSavingCapture(tuple(settings), tuple(unavailable))
+
+    def restart_required(self, key: str, value: str) -> bool:
+        return key == "gpu.configuration" and self._gpu.restart_required(value)
 
     def read(self, key: str) -> str:
         try:

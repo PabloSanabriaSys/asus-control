@@ -43,6 +43,7 @@ def test_asus_round_trip_restores_mixed_custom_curves_and_automation(tmp_path: P
 
     saving.set_enabled(True)
     assert fake.profile == 2
+    assert fake.charge_limit == 100
     assert not fake.auto_ac and not fake.auto_battery
     assert fake.brightness == 0
     assert fake.armoury["panel_overdrive"] == 0
@@ -52,7 +53,7 @@ def test_asus_round_trip_restores_mixed_custom_curves_and_automation(tmp_path: P
     assert fake.led_power[0] == original_leds[0]
     assert fake.led_power[1] == [2, False, False, False, False]
     assert "display.refresh" in saving.status().unavailable
-    assert "gpu.manual" in saving.status().unavailable
+    assert "gpu.configuration" in saving.status().unavailable
 
     # New service, same disk backup, different capabilities: restoration must not recapture.
     PowerSavingService(device(fake, tmp_path / "config"), store, no_lock).set_enabled(False)
@@ -81,3 +82,18 @@ def test_new_sessions_never_capture_screen_brightness(tmp_path: Path) -> None:
     capture = hardware.capture()
     assert "display.brightness" not in {s.key for s in capture.settings}
     assert "display.brightness" not in capture.unavailable
+
+
+def test_external_charge_limit_change_is_reverted_then_original_is_restored(tmp_path: Path) -> None:
+    fake = FakeAsusdBus(charge_limit=80)
+    saving = PowerSavingService(
+        device(fake, tmp_path / "config"), FilePowerSavingStore(tmp_path / "state"), no_lock
+    )
+    saving.set_enabled(True)
+    assert fake.charge_limit == 100
+    fake.charge_limit = 60
+    assert not next(c for c in saving.inspect().checks if c.key == "battery.chargeLimit").confirmed
+    saving.reconcile()
+    assert fake.charge_limit == 100
+    saving.set_enabled(False)
+    assert fake.charge_limit == 80

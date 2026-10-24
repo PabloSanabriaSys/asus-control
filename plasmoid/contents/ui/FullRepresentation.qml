@@ -177,7 +177,10 @@ PlasmaExtras.Representation {
                     font: Kirigami.Theme.smallFont
                     opacity: 0.7
                     text: full.applet.savingTransition ? i18n("Applying changes…")
-                          : full.applet.saving && full.applet.saving.restoring ? i18n("Restoration incomplete. Turn off again to retry.")
+                          : full.applet.savingRestartRequired ? (full.applet.saving.restoring
+                              ? i18n("Restart to restore your previous GPU mode.")
+                              : i18n("Restart to finish switching to integrated graphics."))
+                          : full.applet.saving && full.applet.saving.restoring ? i18n("Restoration incomplete. Retry to finish restoring your settings.")
                           : full.applet.savingActive ? i18n("Turn off to restore your previous settings, even after restarting.")
                           : i18n("Saves your current settings before reducing power consumption.")
                 }
@@ -201,11 +204,11 @@ PlasmaExtras.Representation {
 
                 PlasmaComponents.Button {
                     visible: full.applet.savingActive && full.applet.saving
-                             && (full.applet.saving.errors.length > 0 || full.applet.saving.pending.length > 0)
-                             && !full.applet.saving.restoring
+                             && full.applet.savingRetryNeeded
                     enabled: !full.applet.busy
-                    text: i18n("Retry battery saving")
-                    onClicked: full.applet.apply("power-saving", "on")
+                    text: full.applet.saving && full.applet.saving.restoring
+                          ? i18n("Retry restoration") : i18n("Retry battery saving")
+                    onClicked: full.applet.apply("power-saving", full.applet.saving.restoring ? "off" : "on")
                 }
             }
 
@@ -368,7 +371,7 @@ PlasmaExtras.Representation {
 
                 SegmentedRow {
                     Layout.fillWidth: true
-                    enabled: full.applet.available && !full.applet.savingTransition && full.live.chargeLimit !== null
+                    enabled: full.controlsEnabled && full.live.chargeLimit !== null
                     current: full.applet.shown("charge-limit")
                     options: [
                         { value: 60, label: i18n("%1 %", 60) },

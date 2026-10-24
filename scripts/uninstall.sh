@@ -33,7 +33,7 @@ fi
 if [[ "$needs_restore" == yes ]]; then
     [[ -x "$HOME/.local/bin/$APP_ID" ]] || abort_uninstall
     if ! "$HOME/.local/bin/$APP_ID" power-saving off | /usr/bin/python3 -c \
-        'import json,sys; sys.exit(0 if json.load(sys.stdin)["ok"] else 1)'; then
+        'import json,sys; r=json.load(sys.stdin); sys.exit(0 if r["ok"] and not r["state"]["powerSaving"]["restoring"] and not r["state"]["powerSaving"]["enabled"] else 1)'; then
         abort_uninstall
     fi
 fi

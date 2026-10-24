@@ -16,12 +16,16 @@ QtObject {
             "display.refresh": i18n("Internal display at 60 Hz or lower"),
             "panel.overdrive": i18n("Panel overdrive off"),
             "lighting.keyboard": i18n("Keyboard lighting off"),
-            "platform.profile": i18n("Quiet profile")
+            "platform.profile": i18n("Quiet profile"),
+            "battery.chargeLimit": i18n("Charge limit locked at 100 %"),
+            "gpu.configuration": i18n("Integrated graphics active")
         };
         const parts = [];
         const checks = state.checks || [];
         for (const check of checks) {
             const key = check.key;
+            if (state.restoring)
+                continue;
             if (!(key in labels) || !check.confirmed || (state.pending || []).includes(key))
                 continue;
             if (key === "fans.balanced" && !checks.some(c => c.key === "fans.quiet" && c.confirmed && !(state.pending || []).includes(c.key)))
@@ -30,12 +34,14 @@ QtObject {
                 continue;
             parts.push(labels[key]);
         }
-        if (checks.some(check => !check.confirmed) || (state.pending || []).length > 0)
+        const deferred = checks.filter(check => check.restartRequired);
+        if (deferred.length > 0)
+            parts.push(state.restoring ? i18n("Previous GPU mode queued for the next restart.")
+                                      : i18n("Integrated graphics queued for the next restart."));
+        if (checks.some(check => !check.confirmed && !check.restartRequired))
             parts.push(i18n("Some settings are not applied. Retry to apply battery saving."));
-        if ((state.unavailable || []).includes("gpu.manual"))
-            parts.push(i18n("GPU unchanged: switching may require restarting or affect external displays."));
-        if ((state.unavailable || []).includes("gpu.integrated"))
-            parts.push(i18n("Discrete GPU already disabled."));
+        if ((state.unavailable || []).includes("gpu.configuration"))
+            parts.push(i18n("GPU switching unavailable or another GPU change is already queued."));
         const skipped = (state.unavailable || []).filter(key => !key.startsWith("gpu."));
         if (skipped.length > 0)
             parts.push(i18n("Unavailable settings: %1", skipped.join(", ")));

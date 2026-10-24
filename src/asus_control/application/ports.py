@@ -36,6 +36,8 @@ class PowerSavingDevice(Protocol):
 
     def write(self, key: str, value: str) -> None: ...
 
+    def restart_required(self, key: str, value: str) -> bool: ...
+
 
 class PlatformPort(Protocol):
     """Ajustes de plataforma gestionados por asusd."""

@@ -31,6 +31,7 @@ class PowerSavingCheck:
     expected: str
     actual: str | None
     error: str | None = None
+    restart_required: bool = False
 
     @property
     def confirmed(self) -> bool:
@@ -41,3 +42,9 @@ class PowerSavingCheck:
 class PowerSavingInspection:
     session: PowerSavingSession | None
     checks: tuple[PowerSavingCheck, ...] = ()
+
+
+@dataclass(frozen=True)
+class PowerSavingMigration:
+    retired_keys: tuple[str, ...] = ()
+    added_keys: tuple[str, ...] = ()

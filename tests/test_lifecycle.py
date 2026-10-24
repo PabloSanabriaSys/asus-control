@@ -111,3 +111,33 @@ def test_uninstall_without_backup_supports_old_backend(isolated_home: dict[str, 
     )
     assert result.returncode == 0, result.stderr
     assert not backend.exists()
+
+
+def test_uninstall_refuses_pending_gpu_restoration(isolated_home: dict[str, str]) -> None:
+    env = isolated_home
+    backup = snapshot(env, '{"version":1,"session":{"enabled":false}}')
+    backend = launcher(env, True)
+    response = json.dumps(
+        {
+            "ok": True,
+            "state": {
+                "powerSaving": {
+                    "enabled": False,
+                    "restoring": True,
+                    "pending": ["gpu.configuration"],
+                }
+            },
+        }
+    )
+    backend.write_text("#!/bin/sh\nprintf '%s\\n' '" + response + "'\n")
+    result = subprocess.run(
+        [str(ROOT / "scripts/uninstall.sh"), "--no-restart"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert result.returncode == 1
+    assert backend.exists() and backup.exists()
+    assert "disable" not in Path(env["LIFECYCLE_LOG"]).read_text()

@@ -9,6 +9,7 @@ from pathlib import Path
 from asus_control.application.fan_service import FanService
 from asus_control.application.hardware_service import HardwareService
 from asus_control.application.power_saving_service import PowerSavingService
+from asus_control.domain.power_saving import PowerSavingMigration
 from asus_control.infrastructure.asusd import (
     ASUSD_SERVICE,
     AsusdLightbar,
@@ -63,5 +64,8 @@ def build_power_saving_service() -> PowerSavingService:
         FilePowerSavingStore(default_state_path()),
         lambda: fan_lock(power_lock, wait_seconds=3.0),
         lambda: fan_lock(default_lock_path()),
-        retired_keys=("display.brightness",),
+        migration=PowerSavingMigration(
+            retired_keys=("display.brightness",),
+            added_keys=("battery.chargeLimit", "gpu.configuration"),
+        ),
     )

@@ -44,6 +44,8 @@ Activa **Ahorro máximo de batería** para guardar los ajustes actuales y reduci
 | Ajuste compatible | Durante el ahorro |
 |---|---|
 | Rendimiento | Quiet |
+| Límite de carga | 100 %, bloqueado durante el ahorro |
+| GPU | Gráficos integrados; si cambia el modo, se prepara para el próximo reinicio |
 | Ventilación de Balanced y Quiet | Control automático; se guardan las curvas originales completas |
 | Teclado y cinta LED | Apagados; la cinta también se desactiva en arranque, suspensión y apagado |
 | Pantalla interna | 60 Hz o menos, conservando la resolución |
@@ -51,9 +53,13 @@ Activa **Ahorro máximo de batería** para guardar los ajustes actuales y reduci
 | Pantalla inactiva | Apagado después de 2 minutos |
 | Suspensión por inactividad | Después de 10 minutos, si el sistema admite suspender |
 
-No cambia el brillo ni la frecuencia actuales del monitor externo, la acción de la tapa o el límite de carga. Los cambios automáticos de perfil de asusd y de teclado/perfil de KDE se coordinan temporalmente con el ahorro y se restauran después. Los controles administrados se deshabilitan hasta completar la restauración; el límite de carga sigue disponible.
+Conserva los ajustes de brillo y frecuencia de los monitores externos y la acción de la tapa. Los cambios automáticos de perfil de asusd y de teclado/perfil de KDE se coordinan temporalmente con el ahorro y se restauran después. Los controles manuales, incluido el límite de carga, quedan bloqueados hasta desactivar el ahorro y completar la restauración. El servicio vuelve a fijar el límite en 100 % si otra herramienta lo cambia durante el ahorro.
 
-Los ajustes no compatibles se indican en el panel. **La GPU no se cambia automáticamente:** en este equipo el cambio puede requerir reiniciar y afectar al monitor externo; el applet informa de esa limitación. El nombre del modo describe sus ajustes de ahorro, no garantiza una autonomía determinada.
+Los ajustes no compatibles se indican en el panel. Para la GPU se usan las solicitudes diferidas de asusd: el modo integrado se aplica al próximo reinicio, sin cerrar tu sesión automáticamente. Hasta entonces el applet indica **pendiente de reinicio**, no «GPU integrada activa».
+
+Si desactivas el ahorro antes de reiniciar, se cancela la solicitud de GPU. Si ya reiniciaste con la integrada, volver al modo de GPU anterior puede necesitar otro reinicio; el respaldo se conserva hasta confirmarlo. Las salidas externas conectadas a la GPU dedicada pueden dejar de funcionar en modo integrado. Consulta la [documentación de cambio de GPU de ASUS Linux](https://opengamingcollective.github.io/asusctl/faq/gpu-switching.html).
+
+No se sustituye una solicitud de GPU que ya estuviera pendiente desde otra herramienta. Si falta el soporte de conmutación diferida o `asus-shutdown.service`, se informa de que la GPU no se pudo administrar. El nombre del modo describe sus ajustes de ahorro, no garantiza una autonomía determinada.
 
 El servicio comprueba conexión del cargador y reanudaciones cada 15 segundos, y verifica los ajustes activos cada minuto. Con el ahorro desactivado no lee ni modifica el hardware. Si una aplicación externa cambia ajustes administrados durante el ahorro, el servicio vuelve a aplicar los valores del modo.
 
@@ -73,11 +79,13 @@ El ahorro no fija un brillo de pantalla propio: ese ajuste queda a cargo de KDE 
 
 ### Porcentaje de batería y límite de carga
 
-El porcentaje del encabezado es la carga real leída del equipo. Los botones **60 / 80 / 100 %** fijan el límite de carga: si está en 60 %, el portátil conectado puede permanecer en 60 % y mostrar «Sin cargar». Para preparar una carga completa, elige 100 %; ese control funciona también con el ahorro activado. El porcentaje subirá a medida que cargue, no al cambiar el botón.
+El porcentaje del encabezado es la carga real leída del equipo. Los botones **60 / 80 / 100 %** fijan el límite de carga. Al activar el ahorro, el límite pasa automáticamente a **100 %** y se bloquea ahí; al desactivarlo, se restaura el límite anterior.
+
+Cambiar el límite permite cargar más, pero no aumenta instantáneamente el porcentaje: la batería debe estar conectada y cargar físicamente. Con el ahorro apagado puedes elegir el límite manualmente.
 
 La batería y los sensores se actualizan cada 2 segundos con el popup o la ventana independiente visibles. Con el panel cerrado se actualiza únicamente la batería cada 30 segundos, sin consultar los controles de asusd. El icono muestra carga en curso solo cuando el equipo informa «Cargando».
 
-Las comprobaciones del ahorro leen los valores actuales: si otra aplicación cambia un ajuste o falla una lectura, el panel deja de mostrarlo como confirmado y permite reintentar. La auditoría no cambia la configuración. La [comprobación de la versión 0.4.1](docs/validation-0.4.1.md) detalla las pruebas reales y sus límites.
+Las comprobaciones del ahorro leen los valores actuales: si otra aplicación cambia un ajuste o falla una lectura, el panel deja de mostrarlo como confirmado y permite reintentar. La auditoría no cambia la configuración. La [comprobación de la versión 0.4.2](docs/validation-0.4.2.md) detalla las pruebas reales y sus límites.
 
 ## Requisitos
 
@@ -121,7 +129,7 @@ scripts/uninstall.sh               # reinicia plasmashell al terminar
 scripts/uninstall.sh --no-restart
 ```
 
-Restaura primero los ajustes si el ahorro estaba activado. Si falla, conserva la instalación y el respaldo para reintentar. Después elimina el applet, el backend, el servicio, los iconos y la entrada del lanzador. No toca `/etc/asusd`: si instalaste la corrección de la cinta, revierte con `sudo scripts/lightbar-fix.sh revert`.
+Restaura primero los ajustes si el ahorro estaba activado. Si falla o la restauración de GPU requiere reiniciar, conserva la instalación y el respaldo para reintentar. Después elimina el applet, el backend, el servicio, los iconos y la entrada del lanzador. No toca `/etc/asusd`: si instalaste la corrección de la cinta, revierte con `sudo scripts/lightbar-fix.sh revert`.
 
 ## Desarrollo
 

@@ -16,8 +16,10 @@ PlasmoidItem {
     readonly property var saving: hw && hw.powerSaving ? hw.powerSaving : null
     readonly property bool savingActive: saving !== null && (saving.enabled || saving.restoring)
     readonly property bool savingAvailable: saving !== null && saving.available
+    readonly property bool savingRestartRequired: saving !== null && (saving.checks || []).some(check => check.restartRequired)
+    readonly property bool savingRetryNeeded: saving !== null && ((saving.errors || []).length > 0 || (saving.pending || []).some(key => !(saving.checks || []).some(check => check.key === key && check.restartRequired)))
     readonly property bool savingTransition: "power-saving" in pending
-    readonly property bool savingChecked: savingTransition ? pending["power-saving"].value === "on" : savingActive
+    readonly property bool savingChecked: savingTransition ? pending["power-saving"].value === "on" : (saving !== null && saving.enabled)
     property bool panelVisible: false
 
     /** Respuesta del backend Python: ventilación, sensores y batería. */
@@ -90,7 +92,7 @@ PlasmoidItem {
     }
 
     function apply(setting, value) {
-        if (setting !== "power-saving" && setting !== "charge-limit" && (savingActive || savingTransition || !savingAvailable))
+        if (setting !== "power-saving" && (savingActive || savingTransition || !savingAvailable))
             return;
         pending = Object.assign({}, pending, { [setting]: { value: value } });
         enqueueAction(setting, value);

@@ -43,7 +43,7 @@ plasmoid/ (QML) ────┤
   - Un error no previsto devuelve código de salida 1, con la traza en stderr.
 - **Verificación:** cada cambio se confirma con una lectura posterior; si no coincide, se lanza `VerificationError`.
 
-El applet usa `set profile|brightness|charge-limit|lightbar|fan` y `power-saving on|off`. Las escrituras manuales toman el bloqueo del ahorro. Los ajustes administrados se rechazan mientras exista una sesión activa o una restauración pendiente; `charge-limit` permanece disponible porque el ahorro no lo modifica. Las lecturas no escriben.
+El applet usa `set profile|brightness|charge-limit|lightbar|fan` y `power-saving on|off`. Las escrituras manuales toman el bloqueo del ahorro. Todos los ajustes manuales, incluido `charge-limit`, se rechazan mientras exista una sesión activa o una restauración pendiente. Las lecturas no escriben.
 
 ### Applet
 
@@ -93,14 +93,14 @@ Los controles ASUS pasan por la interfaz D-Bus de asusd (servicio `xyz.ljones.As
 - `application/power_saving_service.py`: captura primero, persiste antes de escribir y confirma cada cambio. La reactivación y reconciliación reutilizan el respaldo original. La restauración conserva los fallos pendientes y verifica todo el conjunto antes de liberar el respaldo.
 - `infrastructure/power_saving_store.py`: JSON con versión 1 bajo `XDG_STATE_HOME`, archivo 0600 y directorio 0700 al crearlo. Usa archivo temporal, `fsync`, reemplazo atómico y sincronización del directorio. Un esquema desconocido o un archivo dañado genera un error sin sobrescribirlo.
 - `infrastructure/power_saving_device.py`: registro de ajustes reversibles de asusd y KDE. Cada ajuste modificado tiene lectura, escritura, valor original y objetivo. Las curvas guardan puntos y activación por ventilador, incluidos estados personalizados y Quiet.
-- `infrastructure/kde_power.py`: frecuencia mediante `kscreen-doctor`, conservando resolución y resolviendo modos por conector/tamaño/Hz después de cada arranque. Solo cambia las entradas administradas de `powerdevilrc`, conserva las entradas ausentes como tales y recarga PowerDevil por D-Bus. La GPU se informa como limitación, sin cambios MUX automáticos.
+- `infrastructure/kde_power.py`: frecuencia mediante `kscreen-doctor`, conservando resolución y resolviendo modos por conector/tamaño/Hz después de cada arranque. Solo cambia las entradas administradas de `powerdevilrc`, conserva las entradas ausentes como tales y recarga PowerDevil por D-Bus. El brillo solo conserva compatibilidad de restauración para respaldos antiguos; no se aplica en sesiones nuevas.
 - `infrastructure/power_saving_watch.py`: servicio de usuario ligado a `graphical-session.target`. Cada 15 s comprueba estado persistente y, solo si existe una sesión guardada, conexión AC y reanudación mediante CLOCK_BOOTTIME. Reconcilia al iniciar, reanudar, cambiar AC, encontrar pendientes o cada minuto. Sin cambios necesarios, no vuelve a escribir el respaldo.
 
-La política de PowerDevil usa los mismos valores en AC, Battery y LowBattery durante el ahorro. Se suspende a RAM tras 600 s solo si logind devuelve `CanSuspend=yes`, y se apaga la pantalla tras 120 s. Los inhibidores y capacidades siguen a cargo de KDE. La acción de la tapa, el brillo y la frecuencia de monitores externos y el límite de carga permanecen fuera del conjunto administrado.
+La política de PowerDevil usa los mismos valores en AC, Battery y LowBattery durante el ahorro. Se suspende a RAM tras 600 s solo si logind devuelve `CanSuspend=yes`, y se apaga la pantalla tras 120 s. Los inhibidores y capacidades siguen a cargo de KDE. La acción de la tapa y los ajustes de brillo/frecuencia de monitores externos permanecen fuera del conjunto administrado. El límite de carga se respalda y se fuerza a 100 %.
 
 El bloqueo `asus-control-power-saving.lock` admite una espera acotada de 3 s para que un clic no falle inmediatamente cuando el servicio está verificando. Serializa las escrituras manuales con las transiciones del ahorro. Las transiciones además toman `alternar-ventilacion.lock` para no competir con el script externo de ventilación; los bloqueos se adquieren siempre en ese orden.
 
-El estado JSON añade `powerSaving` con `available`, `enabled`, `restoring`, `pending`, `settings`, `unavailable`, `errors` y `checks` (objetivo, lectura actual y confirmación por ajuste). `power-saving audit` y `state` comparan valores reales sin escribir; no usan el respaldo como prueba de que un ajuste sigue aplicado. Un fallo esperado conserva la convención CLI de salida 0 con `ok:false`; los scripts deben examinar el JSON. El instalador preserva el respaldo en actualizaciones y el desinstalador aborta si no logra restaurar.
+El estado JSON añade `powerSaving` con `available`, `enabled`, `restoring`, `pending`, `settings`, `unavailable`, `errors` y `checks` (incluido `restartRequired`) (objetivo, lectura actual y confirmación por ajuste). `power-saving audit` y `state` comparan valores reales sin escribir; no usan el respaldo como prueba de que un ajuste sigue aplicado. Un fallo esperado conserva la convención CLI de salida 0 con `ok:false`; los scripts deben examinar el JSON. El instalador preserva el respaldo en actualizaciones y el desinstalador aborta si no logra restaurar.
 
 Las claves de PowerDevil se contrastaron con su [esquema oficial](https://github.com/KDE/powerdevil/blob/master/PowerDevilProfileSettings.kcfg), y las interfaces D-Bus se verificaron por introspección en el G615JH con asusd 6.5.0.
 
@@ -190,5 +190,13 @@ El QML no tiene pruebas automáticas. Se comprueba en Plasma con `plasmawindowed
 
 - **Brillo compartido:** asusd expone un único brillo (`Aura.Brightness`) y el firmware lo aplica a teclado y cinta por igual. En el G615JH, la cinta tampoco admite un color propio por zona, así que no hay forma de regular su intensidad por separado.
 - **Interfaz QML:** se verifica manualmente en Plasma; las escrituras y la lógica de restauración están cubiertas en el backend.
-- **GPU:** el modo no desconecta automáticamente la dedicada ni cambia el MUX.
+- **GPU:** las solicitudes se aplican durante el apagado mediante asus-shutdown y se confirman después de reiniciar. No se descarga el controlador ni se fuerza el MUX en la sesión gráfica.
 - **Inicio:** la recuperación ocurre al iniciar sesión de usuario en KDE, no antes del login.
+
+## GPU y límite de carga desde 0.4.2
+
+`infrastructure/gpu.py` lee CurrentValue, QueuedGpuValue y PossibleValues de `dgpu_disable` y del MUX si existe. El objetivo integrado usa dgpu_disable=1 y gpu_mux_mode=1. Solo se escriben los setters diferidos de CurrentValue; nunca se llama ApplyQueuedGpuValue desde la sesión gráfica. Se requiere asus-shutdown activo y se rechazan colas preexistentes al capturar la GPU.
+
+Una GPU en cola conserva su ajuste pendiente, sin tratarlo como fallo ni confirmarlo como activo. `PowerSavingDevice.restart_required` diferencia una cola correcta de una escritura fallida. Después de reiniciar se verifica el valor real antes de confirmar. Apagar el ahorro antes del reinicio cancela la cola; si ya cambió la GPU, se solicita el modo original y el respaldo permanece hasta el siguiente reinicio. El desinstalador no retira el backend mientras esa restauración siga pendiente.
+
+`PowerSavingMigration` añade battery.chargeLimit y gpu.configuration a sesiones antiguas todavía activas: captura y persiste solo los originales de los controles nuevos, sin sustituir los originales de los demás. La carga al 100 % se mantiene y verifica como cualquier otro ajuste administrado; la CLI y el applet impiden cambios manuales mientras existe una sesión.

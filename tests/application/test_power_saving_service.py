@@ -8,7 +8,12 @@ from asus_control.application.fan_service import FanService
 from asus_control.application.hardware_service import HardwareService
 from asus_control.application.power_saving_service import PowerSavingService
 from asus_control.domain.errors import HardwareAccessError
-from asus_control.domain.power_saving import PowerSavingCapture, PowerSavingSession, SavedSetting
+from asus_control.domain.power_saving import (
+    PowerSavingCapture,
+    PowerSavingMigration,
+    PowerSavingSession,
+    SavedSetting,
+)
 from asus_control.infrastructure.power_saving_store import FilePowerSavingStore
 from asus_control.presentation.cli import run
 from tests.fakes import FakeLightbar, FakePlatform, FakeSensors, no_lock
@@ -32,6 +37,9 @@ class Device:
             ),
             ("gpu.manual",),
         )
+
+    def restart_required(self, key: str, value: str) -> bool:
+        return False
 
     def read(self, key: str) -> str:
         return self.values[key]
@@ -219,18 +227,17 @@ def test_cli_exposes_corrupt_snapshot_without_overwriting_it(tmp_path: Path) -> 
     assert path.read_text() == "broken"
 
 
-def test_charge_limit_remains_editable_while_saving_is_active(tmp_path: Path) -> None:
+def test_charge_limit_is_blocked_while_saving_is_active(tmp_path: Path) -> None:
     saving = service(Device(), tmp_path / "state.json")
     platform = FakePlatform()
     hardware = HardwareService(
         platform, FakeLightbar(), FakeSensors(), FanService(platform, no_lock)
     )
     saving.set_enabled(True)
-    assert run(["set", "charge-limit", "100"], hardware, saving)["ok"]
-    assert platform.charge_limit == 100
-    assert saving.status().enabled
+    assert not run(["set", "charge-limit", "60"], hardware, saving)["ok"]
+    assert "set_charge_limit" not in platform.calls
     saving.set_enabled(False)
-    assert platform.charge_limit == 100
+    assert run(["set", "charge-limit", "80"], hardware, saving)["ok"]
 
 
 def test_audit_detects_external_drift_without_writes_or_recapture(tmp_path: Path) -> None:
@@ -283,7 +290,9 @@ def test_removed_brightness_is_restored_once_without_replacing_other_originals(
     store.save(
         PowerSavingSession(True, (original, SavedSetting("display.brightness", "80", "30")), ())
     )
-    saving = PowerSavingService(device, store, no_lock, retired_keys=("display.brightness",))
+    saving = PowerSavingService(
+        device, store, no_lock, migration=PowerSavingMigration(retired_keys=("display.brightness",))
+    )
     saving.reconcile()
     assert device.values["display.brightness"] == "80"
     assert store.load().settings == (original,)
@@ -310,7 +319,9 @@ def test_failed_retirement_keeps_backup_and_does_not_apply_old_brightness_target
         (),
     )
     store.save(original)
-    saving = PowerSavingService(device, store, no_lock, retired_keys=("display.brightness",))
+    saving = PowerSavingService(
+        device, store, no_lock, migration=PowerSavingMigration(retired_keys=("display.brightness",))
+    )
     with pytest.raises(HardwareAccessError):
         saving.reconcile()
     assert store.load().settings == original.settings
@@ -339,8 +350,40 @@ def test_old_brightness_restores_after_policy_side_effects(tmp_path: Path) -> No
             (),
         )
     )
-    saving = PowerSavingService(device, store, no_lock, retired_keys=("display.brightness",))
+    saving = PowerSavingService(
+        device, store, no_lock, migration=PowerSavingMigration(retired_keys=("display.brightness",))
+    )
     saving.set_enabled(False)
     assert device.values["display.brightness"] == "80"
     assert device.values["profile"] == "Balanced"
     assert store.load() is None
+
+
+def test_active_session_adds_charge_limit_without_replacing_old_originals(tmp_path: Path) -> None:
+    class UpgradedDevice(Device):
+        def capture(self) -> PowerSavingCapture:
+            self.captures += 1
+            return PowerSavingCapture(
+                (
+                    SavedSetting("profile", self.values["profile"], "Quiet"),
+                    SavedSetting("battery.chargeLimit", self.values["battery.chargeLimit"], "100"),
+                )
+            )
+
+    device = UpgradedDevice()
+    device.values.update({"profile": "Quiet", "battery.chargeLimit": "80"})
+    store = FilePowerSavingStore(tmp_path / "state")
+    original = SavedSetting("profile", "Performance", "Quiet")
+    store.save(PowerSavingSession(True, (original,), ()))
+    saving = PowerSavingService(
+        device, store, no_lock, migration=PowerSavingMigration(added_keys=("battery.chargeLimit",))
+    )
+    saving.reconcile()
+    assert store.load().settings[0] == original
+    assert device.values["battery.chargeLimit"] == "100"
+    assert store.load().settings[1].original == "80"
+    saving.reconcile()
+    assert device.captures == 1
+    saving.set_enabled(False)
+    assert device.values["profile"] == "Performance"
+    assert device.values["battery.chargeLimit"] == "80"
