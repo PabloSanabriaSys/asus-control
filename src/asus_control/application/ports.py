@@ -20,6 +20,21 @@ from asus_control.domain.models import (
     Profile,
     SensorReadings,
 )
+from asus_control.domain.power_saving import PowerSavingCapture, PowerSavingSession
+
+
+class PowerSavingStore(Protocol):
+    def load(self) -> PowerSavingSession | None: ...
+
+    def save(self, session: PowerSavingSession | None) -> None: ...
+
+
+class PowerSavingDevice(Protocol):
+    def capture(self, brightness_percent: int) -> PowerSavingCapture: ...
+
+    def read(self, key: str) -> str: ...
+
+    def write(self, key: str, value: str) -> None: ...
 
 
 class PlatformPort(Protocol):

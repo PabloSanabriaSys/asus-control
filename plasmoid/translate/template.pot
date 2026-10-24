@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma_applet_com.pablosanabria.asuscontrol\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-17 16:20-0400\n"
+"POT-Creation-Date: 2026-10-24 01:50-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,203 +17,280 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: contents/ui/FullRepresentation.qml:20
+#: contents/ui/FullRepresentation.qml:22
 msgid "Not available"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:80
+#: contents/ui/FullRepresentation.qml:83
 msgid "Performance profile"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:111
-#: contents/ui/FullRepresentation.qml:308
-#: contents/ui/FullRepresentation.qml:309
-#: contents/ui/FullRepresentation.qml:310 contents/ui/main.qml:65
+#: contents/ui/FullRepresentation.qml:114
+#: contents/ui/FullRepresentation.qml:392
+#: contents/ui/FullRepresentation.qml:393
+#: contents/ui/FullRepresentation.qml:394 contents/ui/main.qml:66
 msgid "%1 %"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:127
+#: contents/ui/FullRepresentation.qml:130
 msgid "asusd is not responding. Controls are disabled."
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:140
+#: contents/ui/FullRepresentation.qml:143
 msgid "Close"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:154
+#: contents/ui/FullRepresentation.qml:159 contents/ui/main.qml:63
+msgid "Maximum battery saving"
+msgstr ""
+
+#: contents/ui/FullRepresentation.qml:179
+msgid "Applying changes…"
+msgstr ""
+
+#: contents/ui/FullRepresentation.qml:180
+msgid "Restoration incomplete. Turn off again to retry."
+msgstr ""
+
+#: contents/ui/FullRepresentation.qml:181
+msgid "Turn off to restore your previous settings, even after restarting."
+msgstr ""
+
+#: contents/ui/FullRepresentation.qml:182
+msgid "Saves your current settings before reducing power consumption."
+msgstr ""
+
+#: contents/ui/FullRepresentation.qml:190
+msgid "Screen brightness ceiling"
+msgstr ""
+
+#: contents/ui/FullRepresentation.qml:226
+msgid "Retry battery saving"
+msgstr ""
+
+#: contents/ui/FullRepresentation.qml:238
 msgctxt "sensor tile caption"
 msgid "°C CPU"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:159
+#: contents/ui/FullRepresentation.qml:243
 msgctxt "sensor tile caption"
 msgid "RPM CPU"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:163
+#: contents/ui/FullRepresentation.qml:247
 msgctxt "sensor tile caption"
 msgid "RPM GPU"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:167
+#: contents/ui/FullRepresentation.qml:251
 msgctxt "sensor tile caption, middle fan"
 msgid "RPM mid"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:174
+#: contents/ui/FullRepresentation.qml:258
 msgctxt "section title"
 msgid "Performance"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:193
+#: contents/ui/FullRepresentation.qml:277
 msgid "Fans"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:195
+#: contents/ui/FullRepresentation.qml:279
 msgid "Custom curves"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:212
+#: contents/ui/FullRepresentation.qml:296
 msgid "Lighting"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:235
+#: contents/ui/FullRepresentation.qml:319
 msgid "Keyboard"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:276
+#: contents/ui/FullRepresentation.qml:360
 msgid "Lightbar"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:281
+#: contents/ui/FullRepresentation.qml:365
 msgid "Same brightness as the keyboard"
 msgstr ""
 
-#: contents/ui/FullRepresentation.qml:301
+#: contents/ui/FullRepresentation.qml:385
 msgid "Charge limit"
 msgstr ""
 
+#: contents/ui/Texts.qml:12
+msgid "Screen off after 2 min; suspend after 10 min when supported"
+msgstr ""
+
 #: contents/ui/Texts.qml:13
-msgid "Fan modes can only be changed in Balanced. The profile was not changed."
+msgid "Automatic profile switching paused"
+msgstr ""
+
+#: contents/ui/Texts.qml:14
+msgid "Automatic fans"
+msgstr ""
+
+#: contents/ui/Texts.qml:15
+msgid "Lightbar off"
 msgstr ""
 
 #: contents/ui/Texts.qml:16
-msgid "Could not apply %1. Automatic fan control was restored."
+msgid "Internal display at 60 Hz or lower"
 msgstr ""
 
 #: contents/ui/Texts.qml:17
-msgid "Could not apply %1, and automatic fan control could not be restored."
+msgid "Reduced internal display brightness"
+msgstr ""
+
+#: contents/ui/Texts.qml:18
+msgid "Panel overdrive off"
 msgstr ""
 
 #: contents/ui/Texts.qml:19
+msgid "Keyboard lighting off"
+msgstr ""
+
+#: contents/ui/Texts.qml:20
+msgid "Quiet profile"
+msgstr ""
+
+#: contents/ui/Texts.qml:28
+msgid ""
+"GPU unchanged: switching may require restarting or affect external displays."
+msgstr ""
+
+#: contents/ui/Texts.qml:30
+msgid "Discrete GPU already disabled."
+msgstr ""
+
+#: contents/ui/Texts.qml:33
+msgid "Unavailable settings: %1"
+msgstr ""
+
+#: contents/ui/Texts.qml:40
+msgid "Fan modes can only be changed in Balanced. The profile was not changed."
+msgstr ""
+
+#: contents/ui/Texts.qml:43
+msgid "Could not apply %1. Automatic fan control was restored."
+msgstr ""
+
+#: contents/ui/Texts.qml:44
+msgid "Could not apply %1, and automatic fan control could not be restored."
+msgstr ""
+
+#: contents/ui/Texts.qml:46
 msgid "Another fan change is in progress."
 msgstr ""
 
-#: contents/ui/Texts.qml:21
+#: contents/ui/Texts.qml:48
 msgid "asusd does not support the lightbar on this device."
 msgstr ""
 
-#: contents/ui/Texts.qml:23
+#: contents/ui/Texts.qml:50
 msgid "Could not confirm the new %1."
 msgstr ""
 
-#: contents/ui/Texts.qml:25
+#: contents/ui/Texts.qml:52
 msgid "Could not access the hardware: %1"
 msgstr ""
 
-#: contents/ui/Texts.qml:27
+#: contents/ui/Texts.qml:54
 msgid "Unexpected error: %1"
 msgstr ""
 
-#: contents/ui/Texts.qml:31
+#: contents/ui/Texts.qml:58
 msgid "Could not communicate with the ASUS Control backend."
 msgstr ""
 
-#: contents/ui/Texts.qml:37
+#: contents/ui/Texts.qml:64
 msgctxt "setting name inside a sentence"
 msgid "profile"
 msgstr ""
 
-#: contents/ui/Texts.qml:39
+#: contents/ui/Texts.qml:66
 msgctxt "setting name inside a sentence"
 msgid "fan mode"
 msgstr ""
 
-#: contents/ui/Texts.qml:41
+#: contents/ui/Texts.qml:68
 msgctxt "setting name inside a sentence"
 msgid "lighting level"
 msgstr ""
 
-#: contents/ui/Texts.qml:43
+#: contents/ui/Texts.qml:70
 msgctxt "setting name inside a sentence"
 msgid "charge limit"
 msgstr ""
 
-#: contents/ui/Texts.qml:45
+#: contents/ui/Texts.qml:72
 msgctxt "setting name inside a sentence"
 msgid "lightbar state"
 msgstr ""
 
-#: contents/ui/Texts.qml:53
+#: contents/ui/Texts.qml:80
 msgctxt "lighting level"
 msgid "Off"
 msgstr ""
 
-#: contents/ui/Texts.qml:55
+#: contents/ui/Texts.qml:82
 msgctxt "lighting level"
 msgid "Low"
 msgstr ""
 
-#: contents/ui/Texts.qml:57
+#: contents/ui/Texts.qml:84
 msgctxt "lighting level"
 msgid "Medium"
 msgstr ""
 
-#: contents/ui/Texts.qml:59
+#: contents/ui/Texts.qml:86
 msgctxt "lighting level"
 msgid "High"
 msgstr ""
 
-#: contents/ui/Texts.qml:67
+#: contents/ui/Texts.qml:94
 msgctxt "battery status"
 msgid "Charging"
 msgstr ""
 
-#: contents/ui/Texts.qml:69
+#: contents/ui/Texts.qml:96
 msgctxt "battery status"
 msgid "Discharging"
 msgstr ""
 
-#: contents/ui/Texts.qml:71
+#: contents/ui/Texts.qml:98
 msgctxt "battery status"
 msgid "Not charging"
 msgstr ""
 
-#: contents/ui/Texts.qml:73
+#: contents/ui/Texts.qml:100
 msgctxt "battery status"
 msgid "Full"
 msgstr ""
 
-#: contents/ui/Texts.qml:79
+#: contents/ui/Texts.qml:106
 msgid "On battery"
 msgstr ""
 
-#: contents/ui/Texts.qml:79
+#: contents/ui/Texts.qml:106
 msgid "Plugged in"
 msgstr ""
 
-#: contents/ui/main.qml:45
+#: contents/ui/main.qml:44
 msgid "ASUS Control"
 msgstr ""
 
-#: contents/ui/main.qml:59
+#: contents/ui/main.qml:58
 msgid "asusd is not available"
 msgstr ""
 
-#: contents/ui/main.qml:61
+#: contents/ui/main.qml:60
 msgid "Reading state…"
 msgstr ""
 
-#: contents/ui/main.qml:62
+#: contents/ui/main.qml:61
 msgid "Profile %1"
 msgstr ""

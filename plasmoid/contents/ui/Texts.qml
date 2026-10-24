@@ -7,6 +7,33 @@
 import QtQuick
 
 QtObject {
+    function savingSettings(state) {
+        const labels = {
+            "desktop.policy": i18n("Screen off after 2 min; suspend after 10 min when supported"),
+            "platform.autoAc": i18n("Automatic profile switching paused"),
+            "fans.balanced": i18n("Automatic fans"),
+            "lighting.lightbar": i18n("Lightbar off"),
+            "display.refresh": i18n("Internal display at 60 Hz or lower"),
+            "display.brightness": i18n("Reduced internal display brightness"),
+            "panel.overdrive": i18n("Panel overdrive off"),
+            "lighting.keyboard": i18n("Keyboard lighting off"),
+            "platform.profile": i18n("Quiet profile")
+        };
+        const parts = [];
+        for (const key of state.settings || []) {
+            if (key in labels && (state.pending || []).indexOf(key) === -1)
+                parts.push(labels[key]);
+        }
+        if ((state.unavailable || []).includes("gpu.manual"))
+            parts.push(i18n("GPU unchanged: switching may require restarting or affect external displays."));
+        if ((state.unavailable || []).includes("gpu.integrated"))
+            parts.push(i18n("Discrete GPU already disabled."));
+        const skipped = (state.unavailable || []).filter(key => !key.startsWith("gpu."));
+        if (skipped.length > 0)
+            parts.push(i18n("Unavailable settings: %1", skipped.join(", ")));
+        return parts.join(" · ");
+    }
+
     function error(details) {
         switch (details.code) {
         case "fanRequiresBalanced":

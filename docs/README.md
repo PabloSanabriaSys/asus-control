@@ -4,20 +4,21 @@
 
 ASUS Control tiene dos partes:
 
-- **El applet** (`plasmoid/`, QML): la interfaz de la bandeja. Lee y escribe directamente en asusd por D-Bus los ajustes simples, y recibe sus cambios en vivo.
-- **El backend** (`src/asus_control/`, Python sin dependencias externas): la ventilación, que necesita bloqueo, verificación y recuperación, y la lectura de sensores y batería. El applet lo ejecuta como orden: `asus-control state` o `asus-control set …`, que responden con una línea JSON.
+- **El applet** (`plasmoid/`, QML): la interfaz de la bandeja. Lee los ajustes simples de asusd por D-Bus en vivo y envía todas las escrituras al backend.
+- **El backend** (`src/asus_control/`, Python sin dependencias externas): coordina las escrituras, la ventilación, el ahorro reversible y la lectura de sensores y batería. El applet lo ejecuta como orden: `asus-control state` o `asus-control set …`, que responden con una línea JSON.
 
 ```
                     ┌── D-Bus (en vivo) ──▶ asusd: perfil, brillo, límite de carga, cinta LED
 plasmoid/ (QML) ────┤
-                    └── sh ──▶ asus-control ──▶ asusd (ventilación) + sysfs (sensores, batería)
+                    └── sh ──▶ asus-control ──▶ asusd + KDE/PowerDevil + sysfs
 ```
 
 | Ajuste | Lectura | Escritura | Confirmación |
 |---|---|---|---|
-| Perfil, brillo, límite de carga, cinta LED | `AsusdLive.qml` (`DBus.Properties`), en vivo por `PropertiesChanged` | `busctl set-property` desde QML | el `PropertiesChanged` de asusd; si no llega en 3 s, error «no confirmado» |
+| Perfil, brillo, límite de carga, cinta LED | `AsusdLive.qml` (`DBus.Properties`), en vivo por `PropertiesChanged` | `asus-control set …` | lectura posterior verificada por el backend |
 | Ventilación | backend (`asus-control state`) | backend (`asus-control set fan …`) | respuesta verificada del backend |
 | Sensores y batería | backend, cada 2 s con el popup abierto | — | — |
+| Ahorro | estado persistente del backend | `asus-control power-saving on/off` | verificación de cada ajuste y conservación del respaldo |
 
 ### Backend por capas
 
@@ -42,14 +43,14 @@ plasmoid/ (QML) ────┤
   - Un error no previsto devuelve código de salida 1, con la traza en stderr.
 - **Verificación:** cada cambio se confirma con una lectura posterior; si no coincide, se lanza `VerificationError`.
 
-La CLI también admite `set profile|brightness|charge-limit|lightbar` (útil desde la terminal). El applet no las usa: escribe esos ajustes directamente.
+El applet usa `set profile|brightness|charge-limit|lightbar|fan` y `power-saving on|off`. Las escrituras manuales toman el bloqueo del ahorro y se rechazan mientras exista una sesión activa o una restauración pendiente. Las lecturas no escriben.
 
 ### Applet
 
 - **`main.qml`:** coordina el applet.
   - Guarda los cambios pendientes (`pending`): el valor elegido se muestra al instante y los demás controles siguen disponibles. Al confirmarse, se muestra el valor leído; si falla, el control vuelve al valor real y aparece el error.
   - Gestiona la cola de órdenes del backend: una a la vez, las acciones antes que las lecturas, y solo el último valor si se cambia el mismo ajuste varias veces seguidas.
-- **`AsusdLive.qml`:** lecturas en vivo y escrituras directas en asusd.
+- **`AsusdLive.qml`:** lecturas en vivo de asusd; no escribe.
   - Descubre solo la ruta del dispositivo Aura (`GetManagedObjects`).
   - Si asusd se reinicia, vuelve a leer todo.
 - **`FullRepresentation.qml`:** el popup. Usa los componentes `Section`, `SegmentedRow`, `BrightnessSlider` y `SensorTile`.
@@ -63,19 +64,19 @@ La CLI también admite `set profile|brightness|charge-limit|lightbar` (útil des
 
 | Limitación | Solución |
 |---|---|
-| No puede enviar `uint32` ni `byte` dentro de un `variant`, y escribir en su mapa de propiedades no llega al bus | Las escrituras usan `busctl set-property` |
-| No envía estructuras | `LedPower` se escribe con `busctl`; las curvas de ventilación, desde el backend |
+| No puede enviar `uint32` ni `byte` dentro de un `variant`, y escribir en su mapa de propiedades no llega al bus | Las escrituras se delegan al backend |
+| No envía estructuras | LedPower y las curvas se escriben desde el backend |
 | Las estructuras que llegan en `PropertiesChanged` quedan vacías | `LedPower` se relee con `update()` y se conserva la última lectura válida |
 | Los enteros sin signo llegan envueltos (`{value: n}`) | Se desenvuelven al leer |
 | Las listas son secuencias de Qt (`Array.isArray()` devuelve `false`) | Se comprueban como objetos con `length` |
 
 ## Fuentes de datos
 
-Todo pasa por la interfaz D-Bus de asusd (servicio `xyz.ljones.Asusd`), la misma que usa `asusctl`. El backend la consulta con `busctl --json=short`.
+Los controles ASUS pasan por la interfaz D-Bus de asusd (servicio `xyz.ljones.Asusd`), la misma que usa `asusctl`. El backend la consulta con `busctl --json=short`.
 
 | Dato | Origen |
 |---|---|
-| Perfil | `Platform.PlatformProfile` (0 Balanced, 1 Performance, 2 Quiet). `PlatformProfileOnAc/OnBattery` no se tocan. |
+| Perfil | `Platform.PlatformProfile` (0 Balanced, 1 Performance, 2 Quiet). Los perfiles predeterminados OnAc/OnBattery no se tocan; el ahorro respalda y pausa los booleanos ChangePlatformProfileOnAc/OnBattery. |
 | Límite de carga | `Platform.ChargeControlEndThreshold` |
 | Brillo | `Aura.Brightness` (0 Off … 3 High) |
 | Cinta LED | `Aura.SupportedPowerZones` y `Aura.LedPower`. `LedPower` se escribe completo, conservando la zona del teclado. |
@@ -85,6 +86,23 @@ Todo pasa por la interfaz D-Bus de asusd (servicio `xyz.ljones.Asusd`), la misma
 
 - Los códigos y la forma de las respuestas se verificaron en el equipo y están en `tests/fixtures/dbus_*.json`.
 - Los dispositivos de sysfs se buscan por `name`, `*_label` y `type`, nunca por su número, que cambia entre arranques.
+
+## Ahorro reversible
+
+- `domain/power_saving.py`: sesión inmutable con intención de encendido/apagado, valores originales, objetivos y ajustes pendientes.
+- `application/power_saving_service.py`: captura primero, persiste antes de escribir y confirma cada cambio. La reactivación y reconciliación reutilizan el respaldo original. La restauración conserva los fallos pendientes y verifica todo el conjunto antes de liberar el respaldo.
+- `infrastructure/power_saving_store.py`: JSON con versión 1 bajo `XDG_STATE_HOME`, archivo 0600 y directorio 0700 al crearlo. Usa archivo temporal, `fsync`, reemplazo atómico y sincronización del directorio. Un esquema desconocido o un archivo dañado genera un error sin sobrescribirlo.
+- `infrastructure/power_saving_device.py`: registro de ajustes reversibles de asusd y KDE. Cada ajuste modificado tiene lectura, escritura, valor original y objetivo. Las curvas guardan puntos y activación por ventilador, incluidos estados personalizados y Quiet.
+- `infrastructure/kde_power.py`: brillo por la interfaz `org.kde.ScreenBrightness.Display`, seleccionando `IsInternal`; frecuencia mediante `kscreen-doctor`, conservando resolución y resolviendo modos por conector/tamaño/Hz después de cada arranque. Solo cambia las entradas administradas de `powerdevilrc`, conserva las entradas ausentes como tales y recarga PowerDevil por D-Bus. La GPU se informa como limitación, sin cambios MUX automáticos.
+- `infrastructure/power_saving_watch.py`: servicio de usuario ligado a `graphical-session.target`. Cada 15 s comprueba estado persistente y, solo si existe una sesión guardada, conexión AC y reanudación mediante CLOCK_BOOTTIME. Reconcilia al iniciar, reanudar, cambiar AC, encontrar pendientes o cada minuto. Sin cambios necesarios, no vuelve a escribir el respaldo.
+
+La política de PowerDevil usa los mismos valores en AC, Battery y LowBattery durante el ahorro. Se suspende a RAM tras 600 s solo si logind devuelve `CanSuspend=yes`, y se apaga la pantalla tras 120 s. Los inhibidores y capacidades siguen a cargo de KDE. La acción de la tapa, el brillo y la frecuencia de monitores externos y el límite de carga permanecen fuera del conjunto administrado.
+
+El bloqueo `asus-control-power-saving.lock` serializa las escrituras manuales con las transiciones del ahorro. Las transiciones además toman `alternar-ventilacion.lock` para no competir con el script externo de ventilación; los bloqueos se adquieren siempre en ese orden.
+
+El estado JSON añade `powerSaving` con `available`, `enabled`, `restoring`, `pending`, `settings`, `unavailable` y `errors`. Un fallo esperado conserva la convención CLI de salida 0 con `ok:false`; los scripts deben examinar el JSON. El instalador preserva el respaldo en actualizaciones y el desinstalador aborta si no logra restaurar.
+
+Las claves de PowerDevil se contrastaron con su [esquema oficial](https://github.com/KDE/powerdevil/blob/master/PowerDevilProfileSettings.kcfg), y las interfaces D-Bus se verificaron por introspección en el G615JH con asusd 6.5.0.
 
 ## Ventilación
 
@@ -156,10 +174,13 @@ El applet nunca modifica `/etc`: sin la definición, la fila de la cinta LED no 
 | `tests/presentation/` | Órdenes de la CLI, JSON del estado y códigos de error |
 | `tests/test_architecture.py` | Regla de dependencias entre capas |
 | `tests/test_translations.py` | Traducciones completas y al día |
+| `tests/test_lifecycle.py` | Actualización sin pérdida de preferencias o respaldo; desinstalación bloqueada si no puede restaurar |
 
 El QML no tiene pruebas automáticas. Se comprueba en Plasma con `plasmawindowed com.pablosanabria.asuscontrol` y revisando `journalctl --user -u plasma-plasmashell`.
 
 ## Limitaciones conocidas
 
 - **Brillo compartido:** asusd expone un único brillo (`Aura.Brightness`) y el firmware lo aplica a teclado y cinta por igual. En el G615JH, la cinta tampoco admite un color propio por zona, así que no hay forma de regular su intensidad por separado.
-- **Lógica en QML sin tests:** los códigos de asusd y la escritura de `LedPower` del applet están en `AsusdLive.qml`, sin pruebas automáticas.
+- **Interfaz QML:** se verifica manualmente en Plasma; las escrituras y la lógica de restauración están cubiertas en el backend.
+- **GPU:** el modo no desconecta automáticamente la dedicada ni cambia el MUX.
+- **Inicio:** la recuperación ocurre al iniciar sesión de usuario en KDE, no antes del login.

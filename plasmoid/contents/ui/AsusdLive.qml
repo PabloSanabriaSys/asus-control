@@ -1,18 +1,7 @@
-/*
- * Estado de asusd en vivo, directamente desde QML.
- *
- * Lecturas: DBus.Properties se suscribe a PropertiesChanged, así que perfil, brillo,
- * límite de carga y cinta LED se actualizan solos (también si otra herramienta los cambia).
- * Escrituras: el módulo QML de D-Bus de Plasma no puede enviar uint32/byte dentro de un
- * variant ni estructuras, así que se usa `busctl set-property` (~10 ms). La confirmación
- * de cada cambio es el PropertiesChanged que asusd emite después.
- *
- * Códigos de asusd 6.5 verificados en el equipo (ver tests/fixtures/dbus_*.json en la
- * rama perf/dbus-backend): PlatformProfile 0 Balanced, 1 Performance, 2 Quiet;
- * Brightness 0 off … 3 high; zona 2 de LedPower = Lightbar.
+/* Live, read-only asusd state. All writes go through the backend and its locks.
+ * PlatformProfile: 0 Balanced, 1 Performance, 2 Quiet; Brightness: 0..3.
  */
 import QtQuick
-import org.kde.plasma.plasma5support as P5Support
 import org.kde.plasma.workspace.dbus as DBus
 
 Item {
@@ -40,9 +29,6 @@ Item {
         if (ledPowerRead.length > 0)
             ledPower = ledPowerRead;
     }
-
-    /** Una escritura falló antes de llegar a asusd (p. ej. busctl devolvió error). */
-    signal writeFailed(string setting, string detail)
 
     DBus.DBusServiceWatcher {
         id: watcher
@@ -85,50 +71,11 @@ Item {
         }
     }
 
-    P5Support.DataSource {
-        id: writer
-
-        property var settings: ({})
-
-        engine: "executable"
-        connectedSources: []
-        onNewData: (source, data) => {
-            disconnectSource(source);
-            const setting = settings[source];
-            delete settings[source];
-            if (data["exit code"] !== 0)
-                live.writeFailed(setting, String(data["stderr"]).trim());
-        }
-
-        function run(setting, args) {
-            const command = ["busctl", "--system", "set-property", live.service].concat(args).map(live.quote).join(" ");
-            settings[command] = setting;
-            connectSource(command);
-        }
+    function refreshAll() {
+        platform.updateAll();
+        if (auraPath)
+            aura.updateAll();
     }
-
-    // --- Escrituras -------------------------------------------------------------------
-
-    function setProfile(value) {
-        writer.run("profile", ["/xyz/ljones", "xyz.ljones.Platform", "PlatformProfile", "u", profileCodes[value]]);
-    }
-
-    function setChargeLimit(value) {
-        writer.run("charge-limit", ["/xyz/ljones", "xyz.ljones.Platform", "ChargeControlEndThreshold", "y", value]);
-    }
-
-    function setBrightness(value) {
-        writer.run("brightness", [auraPath, "xyz.ljones.Aura", "Brightness", "u", brightnessCodes[value]]);
-    }
-
-    /** Solo cambia el estado «despierto» de la cinta; el resto de LedPower se conserva. */
-    function setLightbarAwake(on) {
-        const entries = ledPower.map(entry => entry[0] === lightbarZone ? [entry[0], entry[1], on, entry[3], entry[4]] : entry);
-        const flat = [].concat(...entries).map(value => typeof value === "boolean" ? (value ? "true" : "false") : value);
-        writer.run("lightbar", [auraPath, "xyz.ljones.Aura", "LedPower", "(a(ubbbb))", entries.length].concat(flat));
-    }
-
-    // --- Lecturas ---------------------------------------------------------------------
 
     function discoverAura() {
         const reply = DBus.SystemBus.asyncCall({
@@ -189,10 +136,6 @@ Item {
                 return key;
         }
         return null;
-    }
-
-    function quote(value) {
-        return "'" + String(value).replace(/'/g, "'\\''") + "'";
     }
 
     Component.onCompleted: discoverAura()

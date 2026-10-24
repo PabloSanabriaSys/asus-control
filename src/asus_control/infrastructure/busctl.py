@@ -18,14 +18,15 @@ DBusArgument = str | int | bool
 class Busctl:
     """Lecturas y escrituras sobre un servicio del bus del sistema."""
 
-    def __init__(self, run: CommandRunner, service: str) -> None:
+    def __init__(self, run: CommandRunner, service: str, scope: str = "--system") -> None:
         self._run = run
         self._service = service
+        self._scope = scope
 
     def get_property(self, path: str, interface: str, name: str) -> object:
         return _data(
             self._run(
-                ["--system", "--json=short", "get-property", self._service, path, interface, name]
+                [self._scope, "--json=short", "get-property", self._service, path, interface, name]
             )
         )
 
@@ -34,7 +35,7 @@ class Busctl:
     ) -> None:
         self._run(
             [
-                "--system",
+                self._scope,
                 "set-property",
                 self._service,
                 path,
@@ -48,7 +49,7 @@ class Busctl:
     def call(
         self, path: str, interface: str, method: str, signature: str = "", *args: DBusArgument
     ) -> object:
-        command = ["--system", "--json=short", "call", self._service, path, interface, method]
+        command = [self._scope, "--json=short", "call", self._service, path, interface, method]
         if signature:
             command += [signature, *_format(args)]
         output = self._run(command)
@@ -57,7 +58,7 @@ class Busctl:
     def object_paths(self) -> list[str]:
         return [
             line.strip()
-            for line in self._run(["--system", "--list", "tree", self._service]).splitlines()
+            for line in self._run([self._scope, "--list", "tree", self._service]).splitlines()
         ]
 
 

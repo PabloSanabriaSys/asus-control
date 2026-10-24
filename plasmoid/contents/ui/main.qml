@@ -1,15 +1,5 @@
-/*
- * Applet de bandeja de ASUS Control.
- *
- * Dos fuentes de datos:
- *  - AsusdLive: asusd por D-Bus desde QML (perfil, brillo, límite de carga, cinta LED),
- *    en vivo y con escrituras directas.
- *  - Backend Python (`asus-control`): ventilación, que necesita el bloqueo compartido con
- *    alternar-ventilacion y la recuperación ante fallos, y sensores/batería (sysfs).
- *
- * Un cambio se muestra al instante como «pendiente» y se confirma con la lectura posterior:
- * el aviso de cambio de asusd o la respuesta verificada del backend. Si no llega a tiempo,
- * el control vuelve al valor real y se muestra el error. Textos en Texts.qml (i18n).
+/* Live asusd readings plus serialized, verified backend writes.
+ * Battery saving owns its managed controls until restoration finishes.
  */
 import QtQuick
 import org.kde.kirigami as Kirigami
@@ -22,13 +12,22 @@ PlasmoidItem {
 
     readonly property string backend: "\"$HOME/.local/bin/asus-control\""
     readonly property int panelRefreshMs: 2000
-    readonly property int confirmTimeoutMs: 3000
-    /** Ajustes que se escriben directamente en asusd; el resto pasa por el backend. */
-    readonly property var liveSettings: ["profile", "brightness", "charge-limit", "lightbar"]
+    // Writes go through the backend to serialize them with battery-saving transitions.
+    readonly property var saving: hw && hw.powerSaving ? hw.powerSaving : null
+    readonly property bool savingActive: saving !== null && (saving.enabled || saving.restoring)
+    readonly property bool savingAvailable: saving !== null && saving.available
+    readonly property bool savingTransition: "power-saving" in pending
+    readonly property bool savingChecked: savingTransition ? pending["power-saving"].value === "on" : savingActive
+    property int savingBrightness: Plasmoid.configuration.savingBrightness
+
+    function setSavingBrightness(value) {
+        savingBrightness = value;
+        Plasmoid.configuration.savingBrightness = value;
+    }
 
     /** Respuesta del backend Python: ventilación, sensores y batería. */
     property var hw: null
-    /** Cambios sin confirmar: {ajuste: {value, deadline}}. Se muestran en lugar del valor leído. */
+    /** Cambios sin confirmar: {ajuste: {value}}. Se muestran en lugar del valor leído. */
     property var pending: ({})
     readonly property bool busy: Object.keys(pending).length > 0
     /** Último error de una acción; vacío si no hay. Los cambios correctos no se anuncian. */
@@ -60,6 +59,8 @@ PlasmoidItem {
         if (!live.profile)
             return i18n("Reading state…");
         const parts = [i18n("Profile %1", live.profile)];
+        if (savingActive)
+            parts.push(i18n("Maximum battery saving"));
         const battery = hw ? hw.battery : null;
         if (battery && battery.percent !== null)
             parts.push(i18n("%1 %", battery.percent));
@@ -91,49 +92,10 @@ PlasmoidItem {
     }
 
     function apply(setting, value) {
-        pending = Object.assign({}, pending, { [setting]: { value: value, deadline: Date.now() + confirmTimeoutMs } });
-        if (liveSettings.indexOf(setting) !== -1)
-            writeLive(setting, value);
-        else
-            enqueueAction(setting, value);
-    }
-
-    function writeLive(setting, value) {
-        switch (setting) {
-        case "profile":
-            live.setProfile(value);
-            break;
-        case "brightness":
-            live.setBrightness(value);
-            break;
-        case "charge-limit":
-            live.setChargeLimit(value);
-            break;
-        case "lightbar":
-            live.setLightbarAwake(value === "on");
-            break;
-        }
-    }
-
-    /** Confirma los cambios directos cuando asusd ya refleja el valor; caduca los vencidos. */
-    function checkPending() {
-        const now = Date.now();
-        let changed = false;
-        const rest = Object.assign({}, pending);
-        for (const setting of liveSettings) {
-            if (!(setting in rest))
-                continue;
-            if (actual(setting) === rest[setting].value) {
-                delete rest[setting];
-                changed = true;
-            } else if (now > rest[setting].deadline) {
-                delete rest[setting];
-                changed = true;
-                errorMessage = texts.error({ code: "notConfirmed", setting: setting });
-            }
-        }
-        if (changed)
-            pending = rest;
+        if (setting !== "power-saving" && (savingActive || savingTransition || !savingAvailable))
+            return;
+        pending = Object.assign({}, pending, { [setting]: { value: value } });
+        enqueueAction(setting, value);
     }
 
     function dropPending(setting) {
@@ -150,31 +112,9 @@ PlasmoidItem {
         target: root.live
 
         function onProfileChanged() {
-            root.checkPending();
             // La sección de ventilación depende del perfil: se relee el estado del backend.
             root.refresh();
         }
-        function onBrightnessChanged() {
-            root.checkPending();
-        }
-        function onChargeLimitChanged() {
-            root.checkPending();
-        }
-        function onLightbarChanged() {
-            root.checkPending();
-        }
-        function onWriteFailed(setting, detail) {
-            root.dropPending(setting);
-            root.errorMessage = root.texts.error({ code: "hardwareAccess", detail: detail });
-        }
-    }
-
-    Timer {
-        // Caducidad de los cambios directos que asusd no confirma.
-        interval: 250
-        running: root.busy
-        repeat: true
-        onTriggered: root.checkPending()
     }
 
     // --- Backend Python: una orden a la vez; las acciones van antes que las lecturas ---
@@ -186,7 +126,10 @@ PlasmoidItem {
     }
 
     function enqueueAction(setting, value) {
-        const action = { command: "set " + quote(setting) + " " + quote(value), setting: setting, value: value };
+        const command = setting === "power-saving"
+            ? "power-saving " + quote(value) + (value === "on" ? " --brightness " + savingBrightness : "")
+            : "set " + quote(setting) + " " + quote(value);
+        const action = { command: command, setting: setting, value: value };
         // Si el mismo ajuste ya esperaba en la cola, solo cuenta el último valor.
         const others = queue.filter(item => item.setting !== setting);
         const firstRead = others.findIndex(item => item.setting === null);
@@ -235,6 +178,8 @@ PlasmoidItem {
             return;
         }
         hw = response.state;
+        if (item.setting === "power-saving")
+            live.refreshAll();
         if (item.setting !== null)
             errorMessage = response.ok ? "" : texts.error(response.error);
     }

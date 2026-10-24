@@ -1,6 +1,7 @@
 /* Contenido del popup: resumen, sensores y controles. */
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls as QQC2
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.plasma.extras as PlasmaExtras
@@ -15,7 +16,8 @@ PlasmaExtras.Representation {
     readonly property var battery: hw ? hw.battery : null
     readonly property var live: applet.live
     // Los controles no se bloquean mientras se aplica un cambio: muestran el valor pendiente.
-    readonly property bool controlsEnabled: applet.available
+    readonly property bool controlsEnabled: applet.available && applet.savingAvailable
+                                           && !applet.savingActive && !applet.savingTransition
     readonly property var profile: applet.shown("profile")
     readonly property string unavailable: i18n("Not available")
 
@@ -51,6 +53,7 @@ PlasmaExtras.Representation {
 
         anchors.fill: parent
         contentWidth: availableWidth
+        QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
 
         ColumnLayout {
             // Ancho fijado al área visible: sin desplazamiento horizontal.
@@ -142,6 +145,87 @@ PlasmaExtras.Representation {
                         onTriggered: full.applet.clearError()
                     }
                 ]
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Kirigami.Units.smallSpacing
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Kirigami.Heading {
+                        Layout.fillWidth: true
+                        level: 5
+                        text: i18n("Maximum battery saving")
+                        opacity: 0.75
+                    }
+                    PlasmaComponents.Switch {
+                        enabled: full.applet.savingAvailable && !full.applet.busy
+                        checked: full.applet.savingChecked
+                        onToggled: {
+                            const wanted = checked;
+                            checked = Qt.binding(() => full.applet.savingChecked);
+                            full.applet.apply("power-saving", wanted ? "on" : "off");
+                        }
+                    }
+                }
+
+                PlasmaComponents.Label {
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    wrapMode: Text.WordWrap
+                    font: Kirigami.Theme.smallFont
+                    opacity: 0.7
+                    text: full.applet.savingTransition ? i18n("Applying changes…")
+                          : full.applet.saving && full.applet.saving.restoring ? i18n("Restoration incomplete. Turn off again to retry.")
+                          : full.applet.savingActive ? i18n("Turn off to restore your previous settings, even after restarting.")
+                          : i18n("Saves your current settings before reducing power consumption.")
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: !full.applet.savingActive
+                    PlasmaComponents.Label {
+                        Layout.fillWidth: true
+                        text: i18n("Screen brightness ceiling")
+                    }
+                    PlasmaComponents.SpinBox {
+                        from: 1
+                        to: 100
+                        stepSize: 5
+                        value: full.applet.savingBrightness
+                        enabled: !full.applet.busy
+                        onValueModified: {
+                            full.applet.setSavingBrightness(value);
+                        }
+                    }
+                    PlasmaComponents.Label { text: "%" }
+                }
+
+                PlasmaComponents.Label {
+                    Layout.fillWidth: true
+                    visible: full.applet.savingActive
+                    text: full.applet.saving ? full.texts.savingSettings(full.applet.saving) : ""
+                    wrapMode: Text.WordWrap
+                    font: Kirigami.Theme.smallFont
+                    opacity: 0.8
+                }
+
+                PlasmaComponents.Label {
+                    Layout.fillWidth: true
+                    visible: full.applet.saving && full.applet.saving.errors.length > 0
+                    text: full.applet.saving ? full.applet.saving.errors.join("\n") : ""
+                    wrapMode: Text.WrapAnywhere
+                    color: Kirigami.Theme.negativeTextColor
+                }
+
+                PlasmaComponents.Button {
+                    visible: full.applet.savingActive && full.applet.saving
+                             && full.applet.saving.errors.length > 0 && !full.applet.saving.restoring
+                    enabled: !full.applet.busy
+                    text: i18n("Retry battery saving")
+                    onClicked: full.applet.apply("power-saving", "on")
+                }
             }
 
             // --- Sensores -----------------------------------------------------------

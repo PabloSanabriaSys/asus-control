@@ -32,7 +32,7 @@ remove_legacy_tray_app() {
     # Versión anterior: app Qt con icono propio y entrada de autostart.
     pkill -u "$(id -u)" -f "^$PYTHON -m asus_control$" 2>/dev/null || true
     rm -f -- "$CONFIG_HOME/autostart/$APP_ID.desktop"
-    rm -rf -- "$CONFIG_HOME/$APP_ID"
+    # Preserve user preferences and durable restoration snapshots during upgrades.
 }
 
 install_backend() {
@@ -101,12 +101,38 @@ DESKTOP
     command -v kbuildsycoca6 >/dev/null && kbuildsycoca6 >/dev/null 2>&1 || true
 }
 
+install_power_saving_service() {
+    local unit_dir="$CONFIG_HOME/systemd/user"
+    mkdir -p -- "$unit_dir"
+    cat > "$unit_dir/$APP_ID-power-saving.service" <<UNIT
+[Unit]
+Description=ASUS Control battery saving restoration and session recovery
+PartOf=graphical-session.target
+After=plasma-powerdevil.service
+
+[Service]
+Type=simple
+ExecStart="$LAUNCHER" power-saving watch
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=graphical-session.target
+UNIT
+    systemctl --user daemon-reload
+    systemctl --user enable "$APP_ID-power-saving.service"
+    if systemctl --user is-active --quiet graphical-session.target; then
+        systemctl --user restart "$APP_ID-power-saving.service"
+    fi
+}
+
 main() {
     check_requirements
     remove_legacy_tray_app
     install_backend
     install_applet
     install_launcher_entry
+    install_power_saving_service
     echo "Backend: $LAUNCHER"
     echo "Applet: $APPLET_ID"
     if [[ "${1:-}" == "--no-restart" ]]; then

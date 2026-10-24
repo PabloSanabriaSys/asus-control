@@ -12,9 +12,11 @@ import json
 import logging
 import sys
 from collections.abc import Callable, Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass
 
 from asus_control.application.hardware_service import HardwareService
+from asus_control.application.power_saving_service import PowerSavingService
 from asus_control.domain.errors import AsusControlError
 from asus_control.domain.models import Brightness, ChargeLimit, FanMode, Profile, Setting
 from asus_control.presentation.serialization import JsonObject, error_to_json, state_to_json
@@ -63,6 +65,16 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("state", help="full hardware state")
     commands.add_parser("profile", help="active profile only")
+    saving = commands.add_parser("power-saving", help="reversible maximum battery saving")
+    saving.add_argument("action", choices=["on", "off", "reconcile", "watch"])
+    saving.add_argument(
+        "--brightness",
+        type=int,
+        choices=range(1, 101),
+        default=30,
+        metavar="1-100",
+        help="internal panel brightness ceiling (default: 30)",
+    )
     setter = commands.add_parser("set", help="change a setting and confirm it")
     targets = setter.add_subparsers(dest="setting", required=True)
     for setting, command in _SETTINGS.items():
@@ -70,26 +82,65 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def run(argv: Sequence[str], service: HardwareService) -> JsonObject:
+def run(
+    argv: Sequence[str], service: HardwareService, saving: PowerSavingService | None = None
+) -> JsonObject:
     """Ejecuta la orden y devuelve la respuesta (sin imprimirla)."""
     args = build_parser().parse_args(argv)
     if args.command == "profile":
         profile = service.read_profile()
         return _response({"profile": profile.value if profile else None})
-    if args.command == "state":
-        return _response(state_to_json(service.read_state()))
-
     try:
-        _SETTINGS[Setting(args.setting)].apply(service, args.value)
+        if args.command == "power-saving":
+            if saving is None:
+                raise AsusControlError("Battery saving is not configured")
+            if args.action == "reconcile":
+                saving.reconcile()
+            elif args.action == "watch":
+                raise AsusControlError("The watcher must be started through the installed launcher")
+            else:
+                saving.set_enabled(args.action == "on", args.brightness)
+        elif args.command == "set":
+            with saving.manual_control() if saving else nullcontext():
+                _SETTINGS[Setting(args.setting)].apply(service, args.value)
     except AsusControlError as error:
-        return _response(state_to_json(service.read_state()), error=error_to_json(error))
-    return _response(state_to_json(service.read_state()))
+        return _response(_state(service, saving), error=error_to_json(error))
+    return _response(_state(service, saving))
 
 
-def main(argv: Sequence[str], build_service: Callable[[], HardwareService]) -> int:
+def _state(service: HardwareService, saving: PowerSavingService | None) -> JsonObject:
+    state = state_to_json(service.read_state())
+    if saving is not None:
+        try:
+            session = saving.status()
+        except AsusControlError as exc:
+            state["powerSaving"] = {
+                "available": False,
+                "enabled": False,
+                "restoring": False,
+                "errors": [str(exc)],
+            }
+        else:
+            state["powerSaving"] = {
+                "available": True,
+                "enabled": session.enabled if session else False,
+                "restoring": session is not None and not session.enabled,
+                "pending": list(session.pending) if session else [],
+                "unavailable": list(session.unavailable) if session else [],
+                "settings": [item.key for item in session.settings] if session else [],
+                "errors": list(session.errors) if session else [],
+            }
+    return state
+
+
+def main(
+    argv: Sequence[str],
+    build_service: Callable[[], HardwareService],
+    saving: PowerSavingService | None = None,
+) -> int:
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     try:
-        response = run(argv, build_service())
+        response = run(argv, build_service(), saving)
     except Exception:
         logger.exception("Unexpected error")
         return 1

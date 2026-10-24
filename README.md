@@ -17,7 +17,7 @@
 
 Applet (plasmoide) para la bandeja de KDE Plasma 6 que controla un portátil ASUS ROG a través de `asusd`: perfil de rendimiento, modos de ventilación, iluminación del teclado y la cinta LED, límite de carga y sensores, todo desde un popup anclado a la barra.
 
-Está hecho y probado para el **ROG Strix G16 G615JH** con asusd 6.5.0 en Fedora (Wayland). La interfaz es QML y habla con asusd por D-Bus; la ventilación y los sensores pasan por un pequeño backend en Python sin dependencias externas. Se muestra en inglés o en español según el idioma del sistema.
+Está hecho y probado para el **ROG Strix G16 G615JH** con asusd 6.5.0 en Fedora (Wayland). La interfaz QML recibe el estado de asusd por D-Bus; un backend Python sin dependencias externas coordina los cambios y la recuperación de ajustes. Se muestra en inglés o en español según el idioma del sistema.
 
 ## Capturas
 
@@ -31,6 +31,7 @@ Está hecho y probado para el **ROG Strix G16 G615JH** con asusd 6.5.0 en Fedora
 
 ## Funciones
 
+- **Ahorro máximo de batería:** un interruptor aplica los ajustes compatibles y recupera tu configuración anterior al desactivarlo, incluso después de reiniciar.
 - **Rendimiento:** Quiet, Balanced y Performance.
 - **Ventilación:** modos Normal, Extra, Ultra y Ultra Mega para el perfil Balanced. La sección solo aparece en Balanced y nunca cambia el perfil por su cuenta. Normal devuelve el control automático a asusd.
 - **Iluminación:** brillo del teclado en cuatro niveles. La cinta LED se enciende y apaga con un interruptor; no tiene brillo propio porque el hardware aplica el mismo a teclado y cinta.
@@ -41,14 +42,52 @@ Está hecho y probado para el **ROG Strix G16 G615JH** con asusd 6.5.0 en Fedora
 
 - Un clic en el icono de la bandeja abre el popup, anclado a la barra como el resto de applets.
 - Perfil, brillo, límite de carga y cinta LED se actualizan en vivo, incluidos los cambios hechos con otras herramientas (`asusctl`, teclas Fn, conexión del cargador).
-- Al tocar un control, el cambio se ve al instante y se confirma con la lectura posterior de asusd. Si no se confirma, el control vuelve al valor real y se muestra el error.
+- Al tocar un control, el cambio se ve al instante y se confirma con la lectura posterior de asusd. Si no se confirma, el control vuelve al valor real y se muestra el error. Las escrituras pasan por el backend y se ejecutan en orden.
 - Al cargarse no aplica ningún ajuste: solo lee.
-- El applet cambia solo el perfil activo. Los perfiles automáticos con y sin cargador siguen a cargo de asusd.
+- Con el ahorro apagado, los perfiles automáticos con y sin cargador siguen a cargo de asusd. Al activarlo se pausan y se restauran al desactivarlo.
 - Si asusd no responde o falta un sensor, el dato aparece como «No disponible» o «—» y los controles afectados se deshabilitan.
+
+## Ahorro máximo de batería
+
+![Ahorro máximo de batería activado](docs/media/battery-saving-es.png)
+
+Activa **Ahorro máximo de batería** para guardar los ajustes actuales y reducir el consumo. Desactívalo para recuperar los valores que tenías antes. El respaldo sobrevive a cierres del applet, apagados y reinicios: al iniciar sesión en KDE, el servicio de usuario recupera el ahorro si seguía activado.
+
+| Ajuste compatible | Durante el ahorro |
+|---|---|
+| Rendimiento | Quiet |
+| Ventilación de Balanced y Quiet | Control automático; se guardan las curvas originales completas |
+| Teclado y cinta LED | Apagados; la cinta también se desactiva en arranque, suspensión y apagado |
+| Pantalla interna | 60 Hz o menos, conservando la resolución |
+| Brillo de pantalla interna | Como máximo 30 % por defecto, configurable antes de activar; nunca aumenta el brillo actual |
+| Overdrive del panel | Desactivado |
+| Pantalla inactiva | Apagado después de 2 minutos |
+| Suspensión por inactividad | Después de 10 minutos, si el sistema admite suspender |
+
+No cambia el brillo ni la frecuencia actuales del monitor externo, la acción de la tapa o el límite de carga. Los cambios automáticos de perfil de asusd y de brillo/perfil de KDE se coordinan temporalmente con el ahorro y se restauran después. Los controles manuales del applet se deshabilitan hasta completar la restauración.
+
+Los ajustes no compatibles se indican en el panel. **La GPU no se cambia automáticamente:** en este equipo el cambio puede requerir reiniciar y afectar al monitor externo; el applet informa de esa limitación. El nombre del modo describe sus ajustes de ahorro, no garantiza una autonomía determinada.
+
+El servicio comprueba conexión del cargador y reanudaciones cada 15 segundos, y verifica los ajustes activos cada minuto. Con el ahorro desactivado no lee ni modifica el hardware. Si una aplicación externa cambia ajustes administrados durante el ahorro, el servicio vuelve a aplicar los valores del modo.
+
+Si falla una aplicación o restauración, se muestran los ajustes pendientes y se conserva el respaldo para reintentar. Un respaldo ilegible bloquea los cambios para evitar perder tu configuración. La desinstalación también intenta restaurarla antes de retirar el programa.
+
+Desde la terminal:
+
+```sh
+asus-control power-saving on                    # activa, brillo máximo 30 %
+asus-control power-saving on --brightness 20    # elige el brillo al iniciar un nuevo ciclo
+asus-control power-saving off                   # restaura los valores anteriores
+asus-control state                              # incluye estado, ajustes pendientes y errores
+```
+
+El brillo elegido no sustituye el respaldo si el ahorro ya estaba activado; para cambiarlo, desactiva y vuelve a activar. La configuración se guarda en `${XDG_STATE_HOME:-~/.local/state}/asus-control/power-saving.json`. No borres ese archivo mientras haya cambios pendientes de restaurar.
 
 ## Requisitos
 
 - KDE Plasma 6 con `asusd` en ejecución (paquete `asusctl`).
+- Para el ahorro de pantalla: PowerDevil y `kscreen-doctor` (los controles no disponibles se omiten).
+- Sesión de usuario con systemd para recuperar el ahorro al iniciar y reanudar.
 - `/usr/bin/python3` 3.11 o superior (sin paquetes adicionales).
 - `gettext` (`msgfmt`) para compilar las traducciones al instalar.
 
@@ -70,8 +109,10 @@ Instala para el usuario actual, sin sudo:
 | `~/.local/share/plasma/plasmoids/com.pablosanabria.asuscontrol/` | Applet, con sus traducciones compiladas |
 | `~/.local/share/applications/asus-control.desktop` | Entrada del lanzador: abre el applet en una ventana |
 | `~/.local/share/icons/hicolor/scalable/apps/asus-control*.svg` | Iconos |
+| `~/.config/systemd/user/asus-control-power-saving.service` | Recuperación y mantenimiento del ahorro durante la sesión |
+| `~/.local/state/asus-control/power-saving.json` | Respaldo persistente, creado al activar el ahorro |
 
-Plasma añade el applet a la bandeja automáticamente. Para actualizar, vuelve a ejecutar el script.
+Plasma añade el applet a la bandeja automáticamente. Para actualizar, vuelve a ejecutar el script; conserva las preferencias y el respaldo de restauración.
 
 ### Cinta LED en el G615JH
 
@@ -84,7 +125,7 @@ scripts/uninstall.sh               # reinicia plasmashell al terminar
 scripts/uninstall.sh --no-restart
 ```
 
-Elimina el applet, el backend, los iconos y la entrada del lanzador. No toca `/etc/asusd`: si instalaste la corrección de la cinta, revierte con `sudo scripts/lightbar-fix.sh revert`.
+Restaura primero los ajustes si el ahorro estaba activado. Si falla, conserva la instalación y el respaldo para reintentar. Después elimina el applet, el backend, el servicio, los iconos y la entrada del lanzador. No toca `/etc/asusd`: si instalaste la corrección de la cinta, revierte con `sudo scripts/lightbar-fix.sh revert`.
 
 ## Desarrollo
 
